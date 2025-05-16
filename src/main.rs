@@ -1,47 +1,24 @@
 use wgpu::{util::DeviceExt, MemoryHints, PipelineCompilationOptions};
 use winit::{
-    application::ApplicationHandler, event::{Event, WindowEvent}, event_loop::{ActiveEventLoop, EventLoop}, window::{Window, WindowId}
+    event::{Event, WindowEvent}, event_loop::EventLoop, window::{Window, WindowBuilder}
 };
 use pollster::block_on;
 use glam::Mat4;
 
 use std::time::Instant;
 
-#[derive(Default)]
-pub struct App {
-    window: Option<winit::window::Window>,
-}
-
-impl ApplicationHandler for App {
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.window.is_none() {
-            let win_attr = Window::default_attributes().with_title("demo");
-            let window = event_loop.create_window(win_attr).unwrap();
-            self.window = Some(window);
-        }
-    }
-    
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
-        match event {
-            // Treat exit
-            WindowEvent::CloseRequested => {
-                event_loop.exit();
-            }
-            _ => ()
-        }
-    }
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct Vertex {
+    position: [f32; 3],
+    color: [f32; 3],
 }
 
 fn main() {
-    // env_logger::init();
-    // let event_loop = EventLoop::new().unwrap();
-    // let window = event_loop.create_window(Window::default_attributes()).unwrap();
-    // block_on(run(event_loop, window));
-
-
+    env_logger::init();
     let event_loop = EventLoop::new().unwrap();
-    let mut app = App::default();
-    event_loop.run_app(&mut app).expect("run app error.");  
+    let window = WindowBuilder::new().build(&event_loop).unwrap();
+    block_on(run(event_loop, window));
 }
 
 async fn run(event_loop: EventLoop<()>, window: Window) {
@@ -100,7 +77,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
     });
     
        // Вершины куба (8 вершин)
-       let vertices = [
+    let vertices = [
         // Передняя грань
         Vertex { position: [-0.5, -0.5,  0.5], color: [1.0, 0.0, 0.0] },
         Vertex { position: [ 0.5, -0.5,  0.5], color: [0.0, 1.0, 0.0] },
@@ -290,9 +267,3 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
 }
 
 
-#[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct Vertex {
-    position: [f32; 3],
-    color: [f32; 3],
-}

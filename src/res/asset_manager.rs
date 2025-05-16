@@ -1,0 +1,151 @@
+use std::path::Path;
+
+use gltf::{json::extensions::texture, Gltf};
+
+use super::{buffer::to_vec, load_gltf_file_data, material::{LoadMaterialError, Material}, mesh::Mesh, model::Model, scene::{ load_scene_meshes, Scene}, storage::Storage, texture::{load_gltf_texture_source_data, GpuTexture}, Handle};
+
+
+
+pub struct AssetManager {
+    pub scenes: Storage<Scene>,
+    pub models: Storage<Model>,
+    pub meshes: Storage<Mesh>,
+    pub textures: Storage<GpuTexture>,
+    pub materials: Storage<Material>,
+}
+
+impl AssetManager {
+    pub fn new() -> Self {
+        Self {
+            scenes: Storage::new(),
+            models: Storage::new(),
+            meshes: Storage::new(),
+            textures: Storage::new(),
+            materials: Storage::new(),
+        }
+    }
+    
+
+    pub fn load_gltf_meshes<'a>(
+        &mut self,
+        gltf: &'a Gltf,
+        base_path: &str,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        )-> Result<Vec<Handle<Mesh>>,  Box<dyn std::error::Error>> {
+        let base_path: Option<&Path> = Some(Path::new(&base_path));
+        let (buffers, _) = load_gltf_file_data(gltf, base_path).unwrap();
+
+
+        let mut material_handles: Vec<Handle<Material>> = Vec::new();
+        for material in gltf.materials() { 
+            let pbr = material.pbr_metallic_roughness();
+            
+            let image_data = match load_gltf_texture_source_data(base_path, pbr, &buffers){
+                Ok(data) => {data},
+                Err(_) => {return Err(Box::new(LoadMaterialError::new("Load texture source error")))},
+            };
+
+            match  GpuTexture::from_bytes(device, queue, &image_data, "lable") {
+                Ok(texture) => {
+                    match self.textures.load(texture){
+                        Ok(t_h) => {
+                            match self.materials.load(Material::from_gltf_texture(&material, t_h)){
+                                Ok(h) => {material_handles.push(h)},
+                                Err(_) => {return Err(Box::new(LoadMaterialError::new("Load texture source error")))},
+                            }
+                        },
+                        Err(_) => {return Err(Box::new(LoadMaterialError::new("Load texture source error")))},
+                    };
+                },
+                Err(_) => {return Err(Box::new(LoadMaterialError::new("Load texture error")))},
+            }
+        }
+       
+        let mut mesh_handles = Vec::new();
+        for mesh in gltf.meshes() {
+            for primitive in mesh.primitives() {
+                let mesh = Mesh::from_gltf_primitive(
+                    &primitive,
+                    &to_vec(buffers.clone()),
+                    material_handles.get(primitive.material().index().unwrap_or(0)).cloned(),
+                )?;
+                match self.meshes.load(mesh) {
+                    Ok(m) => {mesh_handles.push(m);},
+                    Err(_) => {return Err(Box::new(LoadMaterialError::new("Load texture error")))},
+                }
+            }
+        }
+
+        Ok(mesh_handles)
+    }
+
+    // pub fn load_gltf_data<'a>(
+    //     mut self,
+    //     gltf: &'a Gltf,
+    //     file_name: &str,
+    //     device: &wgpu::Device,
+    //     queue: &wgpu::Queue,
+    //     )-> Result<Vec<Handle<Scene>>,  Box<dyn std::error::Error>> {
+    //     let base_path: Option<&Path> = Some(Path::new(&file_name));
+    //     let (buffers, images) = load_gltf_file_data(gltf, base_path).unwrap();
+
+
+    //     let mut material_handles: Vec<Handle<Material>> = Vec::new();
+    //     for material in gltf.materials() { 
+    //         let pbr = material.pbr_metallic_roughness();
+            
+    //         let image_data = match load_gltf_texture_source_data(base_path, pbr, &buffers){
+    //             Ok(data) => {data},
+    //             Err(_) => {return Err(Box::new(LoadMaterialError::new("Load texture source error")))},
+    //         };
+
+    //         match  GpuTexture::from_bytes(device, queue, &image_data, "lable") {
+    //             Ok(texture) => {
+    //                 match self.textures.load(texture){
+    //                     Ok(t_h) => {
+    //                         match self.materials.load(Material::from_gltf_texture(&material, t_h)){
+    //                             Ok(h) => {material_handles.push(h)},
+    //                             Err(_) => {return Err(Box::new(LoadMaterialError::new("Load texture source error")))},
+    //                         }
+    //                     },
+    //                     Err(_) => {return Err(Box::new(LoadMaterialError::new("Load texture source error")))},
+    //                 };
+    //             },
+    //             Err(_) => {return Err(Box::new(LoadMaterialError::new("Load texture error")))},
+    //         }
+    //     }
+
+    //     let scene_handles = Vec::new();
+    //     for scene in gltf.scenes() {
+    //         let scene = load_scene_meshes(scene, buffers.clone(), material_handles.clone());
+    //         for nodes in scene {
+    //             for node in nodes {
+    //                 for mesh in node {  
+    //                     self.meshes.load(mesh);
+    //                 }
+    //             }
+    //         }
+    //     }
+
+    //     Ok(scene_handles)
+    // }
+
+
+ 
+    
+    // fn cached_load<T: Resource>(
+    //     &mut self,
+    //     cache: &mut HashMap<String, Handle<T>>,
+    //     path: &str,
+    //     params: T::LoadParams,
+    // ) -> Result<Handle<T>, Box<dyn std::error::Error>> {
+    //     if let Some(handle) = cache.get(path) {
+    //         return Ok(*handle);
+    //     }
+    //     let handle = T::load(params)?;
+    //     cache.insert(path.to_string(), handle);
+    //     Ok(handle)
+    // }
+}
+

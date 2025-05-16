@@ -1,11 +1,10 @@
 pub mod app;
 pub mod window;
 pub mod renderer;
-pub mod handler;
 mod test;
 
-
+#[derive(Eq, PartialEq, Hash)]
 enum PipelineType {
-    simple,
-    hard
+    Simple,
+    Hard
 }

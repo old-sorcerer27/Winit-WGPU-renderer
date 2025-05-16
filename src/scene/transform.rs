@@ -1,10 +1,12 @@
 use glam::{Mat4, Vec3, Quat};
+use gltf::buffer;
 
 #[derive(Clone, Debug)]
 pub struct Transform {
     pub position: Vec3,
     pub rotation: Quat,
     pub scale: Vec3,
+    pub transform_buffer: Option<wgpu::Buffer>
 }
 
 impl Default for Transform {
@@ -13,13 +15,14 @@ impl Default for Transform {
             position: Vec3::ZERO,
             rotation: Quat::IDENTITY,
             scale: Vec3::ONE,
+            transform_buffer: Option::None,
         }
     }
 }
 
 impl Transform {
-    pub fn new(position: Vec3, rotation: Quat, scale: Vec3) -> Self {
-        Self { position, rotation, scale }
+    pub fn new(position: Vec3, rotation: Quat, scale: Vec3, buffer: wgpu::Buffer) -> Self {
+        Self { position, rotation, scale, transform_buffer: Some(buffer) }
     }
 
     pub fn to_matrix(&self) -> Mat4 {

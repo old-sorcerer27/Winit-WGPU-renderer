@@ -1,5 +1,6 @@
 use glam::{Mat4, Vec3};
-use super::Transform;
+
+use super::transform::Transform;
 
 pub struct Camera {
     pub transform: Transform,

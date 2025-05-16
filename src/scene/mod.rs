@@ -2,30 +2,26 @@ pub mod object;
 pub mod transform;
 pub mod camera;
 pub mod light;
+pub mod shader;
 
 use std::collections::HashMap;
-use object::{SceneObject, SceneObjectKind};
-use transform::Transform;
-use crate::res::{texture::Texture, Handle};
 
-pub struct Scene {
-    pub objects: HashMap<String, SceneObject>,
+use object::{SceneEntity, SceneEntityKind};
+use transform::Transform;
+
+use crate::res::{texture::GpuTexture, Handle};
+
+
+#[derive(Default)]
+pub struct GpuScene {
+    pub objects: HashMap<String, SceneEntity>,
     pub active_camera: String,
     pub lights: Vec<winit::window::Theme>,
     pub ambient_light: [f32; 3],
-    pub skybox: Option<Handle<Texture>>,
+    pub skybox: Option<Handle<GpuTexture>>,
 }
 
-// impl Serialize for Scene {
-//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-//     where
-//         S: serde::Serializer,
-//     {
-//         // Реализация сериализации
-//     }
-// }
-
-impl Scene {
+impl GpuScene {
     pub fn new() -> Self {
         Self {
             objects: HashMap::new(),
@@ -37,7 +33,7 @@ impl Scene {
     }
 
     /// Добавляет объект в сцену
-    pub fn add_object(&mut self, name: &str, object: SceneObject) {
+    pub fn add_object(&mut self, name: &str, object: SceneEntity) {
         self.objects.insert(name.to_string(), object);
     }
 
@@ -51,7 +47,7 @@ impl Scene {
         self.objects.get(&self.active_camera)
             .and_then(|obj| match &obj.kind {
                 // SceneObjectKind::Camera => Some(&obj.transform),
-                SceneObjectKind::Camera { fov: _, near: _, far: _ } => Some(&obj.transform),
+                SceneEntityKind::Camera { fov: _, near: _, far: _ } => Some(&obj.transform),
                 _ => None,
             })
     }
