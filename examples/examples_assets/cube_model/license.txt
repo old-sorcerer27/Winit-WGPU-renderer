@@ -1,0 +1,11 @@
+Model Information:
+* title:	Kevin The Cube
+* source:	https://sketchfab.com/3d-models/kevin-the-cube-9786cbc1a5dc4a8ba5361813c1283bb3
+* author:	lildrstrange11 (https://sketchfab.com/lildrstrange11)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Kevin The Cube" (https://sketchfab.com/3d-models/kevin-the-cube-9786cbc1a5dc4a8ba5361813c1283bb3) by lildrstrange11 (https://sketchfab.com/lildrstrange11) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

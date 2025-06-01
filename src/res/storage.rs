@@ -4,6 +4,7 @@ use slotmap::SlotMap;
 
 use super::{Handle, Resource};
 
+#[derive(Debug, Clone)] 
 pub struct Storage<T: Resource> {
     slotmap: SlotMap<T::Key, T>,
 }

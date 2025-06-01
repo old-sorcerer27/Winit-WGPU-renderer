@@ -4,7 +4,7 @@ mod tests {
 
     #[test]
     fn run() {
-        let gltf = Gltf::open("assets/scene.gltf").unwrap();
+        let gltf = Gltf::open("../../test_assets/cube_model/scene.gltf").unwrap();
         print!(
             "Buffers count {} Images count {}",
             gltf.buffers().len(),

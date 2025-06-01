@@ -3,8 +3,10 @@ pub mod window;
 pub mod renderer;
 mod test;
 
-#[derive(Eq, PartialEq, Hash)]
-enum PipelineType {
+/// Типы пайплайнов рендеринга
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PipelineType {
+    /// Простой пайплайн для отрисовки мешей
     Simple,
-    Hard
 }
+

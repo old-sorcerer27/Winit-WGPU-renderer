@@ -1,7 +1,7 @@
 use std::{error::Error, fmt};
 
 use wgpu::{Device, BindGroupLayout, BindGroupDescriptor, BindGroupEntry, BindingResource};
-use super::{storage::Storage, texture::{GpuTexture, GpuTextureHandle}, Handle};
+use super::{storage::Storage, texture::{get_texture_bind_group_layout, GpuTexture, GpuTextureHandle}, Handle};
 
 /// Материал для рендеринга, содержащий параметры PBR и текстуры
 #[derive(Debug, Clone)]
@@ -45,7 +45,7 @@ impl Material {
     pub fn create_bind_group(
         &mut self,
         device: &Device,
-        layout: &BindGroupLayout,
+        layout: Option<&BindGroupLayout>,
         texture_view: Option<&wgpu::TextureView>,
         sampler: Option<&wgpu::Sampler>,
     ) {
@@ -64,12 +64,22 @@ impl Material {
             ]);
         }
 
-        if !entries.is_empty() {
-            self.bind_group = Some(device.create_bind_group(&BindGroupDescriptor {
-                label: Some(&format!("{}_bind_group", self.name)),
-                layout,
-                entries: &entries,
-            }));
+        match layout {
+            Some(layout) => {if !entries.is_empty() {
+                self.bind_group = Some(device.create_bind_group(&BindGroupDescriptor {
+                    label: Some(&format!("{}_bind_group", self.name)),
+                    layout,
+                    entries: &entries,
+                }));
+            }},
+            None => {
+                let layout = get_texture_bind_group_layout(device);
+                self.bind_group = Some(device.create_bind_group(&BindGroupDescriptor {
+                    label: Some(&format!("{}_bind_group", self.name)),
+                    layout: &layout,
+                    entries: &entries,
+                }));
+            },
         }
     }
 
@@ -131,95 +141,3 @@ impl LoadMaterialError {
 }
 
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use gltf::Material as GltfMaterial;
-//     use wgpu::{
-//         DeviceDescriptor, Features, Limits, Instance, PowerPreference, Queue, RequestAdapterOptions,
-//     };
-
-//     // Вспомогательная функция для создания тестового устройства
-//     async fn create_test_device() -> (Device, Queue) {
-//         let instance = Instance::new(wgpu::Backends::all());
-//         let adapter = instance
-//             .request_adapter(&RequestAdapterOptions {
-//                 power_preference: PowerPreference::LowPower,
-//                 compatible_surface: None,
-//                 force_fallback_adapter: false,
-//             })
-//             .await
-//             .unwrap();
-        
-//         adapter
-//             .request_device(
-//                 &DeviceDescriptor {
-//                     features: Features::empty(),
-//                     limits: Limits::default(),
-//                     label: None,
-//                     required_features: todo!(),
-//                     required_limits: todo!(),
-//                     memory_hints: todo!(),
-//                     trace: wgpu::Trace::Off,
-//                 },
-//                 None,
-//             )
-//             .await
-//             .unwrap()
-//     }
-
-//     #[test]
-//     fn test_material_creation() {
-//         // Тестовый GLTF материал
-//         let gltf_material = GltfMaterial {
-//             name: Some("Test Material"),
-//             pbr_metallic_roughness: gltf::material::PbrMetallicRoughness {
-//                 base_color_factor: [1.0, 0.5, 0.5, 1.0],
-//                 metallic_factor: 0.3,
-//                 roughness_factor: 0.7,
-//                 ..Default::default()
-//             },
-//             ..Default::default()
-//         };
-
-//         // Тест создания материала с текстурой
-//         let texture_handle = Handle::<GpuTexture>::default();
-//         let material = Material::from_gltf_texture(&gltf_material, texture_handle);
-        
-//         assert_eq!(material.name, "Test Material");
-//         assert_eq!(material.base_color, [1.0, 0.5, 0.5, 1.0]);
-//         assert!(material.base_color_texture.is_some());
-//         assert_eq!(material.metallic, 0.3);
-//         assert_eq!(material.roughness, 0.7);
-
-//         // Тест создания материала из списка текстур
-//         let textures = vec![Handle::<GpuTexture>::default(); 2];
-//         let material = Material::from_gltf_material(&gltf_material, &textures);
-//         assert!(material.base_color_texture.is_none()); // В нашем тесте нет текстуры
-//     }
-
-//     #[tokio::test]
-//     async fn test_bind_group_creation() {
-//         let (device, _) = create_test_device().await;
-        
-//         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-//             label: None,
-//             entries: &[],
-//         });
-
-//         let mut material = Material {
-//             name: "Test".to_string(),
-//             base_color: [1.0; 4],
-//             base_color_texture: None,
-//             metallic: 0.0,
-//             roughness: 0.0,
-//             bind_group: None,
-//         };
-
-//         // Создаем bind group без текстур
-//         material.create_bind_group(&device, &layout, None, None);
-//         assert!(material.bind_group.is_none());
-
-//         // TODO: Тест с реальными текстурой и сэмплером потребует больше setup
-//     }
-// }

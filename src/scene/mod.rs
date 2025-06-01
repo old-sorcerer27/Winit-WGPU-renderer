@@ -2,18 +2,18 @@ pub mod object;
 pub mod transform;
 pub mod camera;
 pub mod light;
-pub mod shader;
 
 use std::collections::HashMap;
 
 use object::{SceneEntity, SceneEntityKind};
 use transform::Transform;
+use wgpu::RenderPassDepthStencilAttachment;
 
 use crate::res::{texture::GpuTexture, Handle};
 
 
 #[derive(Default)]
-pub struct GpuScene {
+pub struct AppScene {
     pub objects: HashMap<String, SceneEntity>,
     pub active_camera: String,
     pub lights: Vec<winit::window::Theme>,
@@ -21,7 +21,7 @@ pub struct GpuScene {
     pub skybox: Option<Handle<GpuTexture>>,
 }
 
-impl GpuScene {
+impl AppScene {
     pub fn new() -> Self {
         Self {
             objects: HashMap::new(),
@@ -51,4 +51,31 @@ impl GpuScene {
                 _ => None,
             })
     }
+
+    pub fn update(&mut self, delta_time: f32) {
+
+    }
 }
+
+
+
+
+// pub fn get_depth_stencil_attachment (
+//     depth_texture: Option<&GpuTexture>
+// )-> RenderPassDepthStencilAttachment<'static> {
+//     match depth_texture {
+//         Some(tex) => {
+//             let dsa: RenderPassDepthStencilAttachment<'_> = wgpu::RenderPassDepthStencilAttachment {
+//             view: &tex.view,
+//             depth_ops: Some(wgpu::Operations {
+//                 load: wgpu::LoadOp::Clear(1.0),
+//                 store: wgpu::StoreOp::Discard
+//             }),
+//                stencil_ops: None,
+//             };
+//             return dsa;
+//         },
+//         None => todo!(),
+//     }
+   
+// }

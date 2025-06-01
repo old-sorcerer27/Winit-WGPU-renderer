@@ -1,7 +1,7 @@
 use winit::{
     dpi::PhysicalSize,
     event::Event,
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::{self, ControlFlow, EventLoop},
     window::{Window, WindowBuilder},
 };
 use wgpu::{Adapter, Device, Instance, MemoryHints, Queue, Surface, SurfaceCapabilities, SurfaceConfiguration};
@@ -50,6 +50,10 @@ impl<'a> WindowManager<'a> {
         }
     }
 
+    pub fn take_event_loop(self) -> Option<EventLoop<()>>{
+        return self.event_loop;
+    }
+
     /// Создает графическую поверхность для рендеринга
     pub fn create_surface(&mut self, instance: &Instance) {
         self.surface = Some(
@@ -90,7 +94,7 @@ impl<'a> WindowManager<'a> {
         .expect("Не удалось найти подходящий графический адаптер")
     }
 
-      /// Инициализирует графическое устройство и очередь команд
+    /// Инициализирует графическое устройство и очередь команд
     pub async fn init_device(adapter: &Adapter) -> (Device, Queue) {
         adapter.request_device(
             &wgpu::DeviceDescriptor {
@@ -106,12 +110,11 @@ impl<'a> WindowManager<'a> {
     }
 
     /// Запускает главный цикл приложения
-    pub fn run<F>(mut self, mut event_handler: F)
+    pub fn run<F>(mut self, event_handler: F)
     where
         F: 'static + FnMut(Event<()>, &Window, &mut ControlFlow)
     {
         let event_loop = self.event_loop.take().unwrap();
-        let window = self.window.clone();
 
         event_loop.run(move |event, elwt| {
             elwt.set_control_flow(ControlFlow::Poll);

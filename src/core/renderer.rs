@@ -1,12 +1,10 @@
 use std::collections::HashMap;
-use glam::Mat4;
-use gltf::{Gltf, Scene};
-use wgpu::{util::DeviceExt, PipelineCompilationOptions, ShaderModule};
-use crate::{
-    res::{asset_manager::AssetManager, mesh::Mesh, Handle},
-};
+use gltf::Gltf;
+use wgpu::{util::DeviceExt, PipelineCompilationOptions, ShaderModule, TextureFormat};
 
-use super::window::WindowManager;
+use crate::res::{asset_manager::AssetManager, mesh::Mesh, Handle};
+
+use super::{window::WindowManager, PipelineType};
 
 /// Основной рендерер приложения
 pub struct Renderer {
@@ -63,7 +61,7 @@ impl<'a> Renderer {
         // Настройка пайплайна рендеринга
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/cube.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/cube.wgsl").into()),
         });
 
         let render_pipeline = Self::create_render_pipeline(
@@ -86,7 +84,7 @@ impl<'a> Renderer {
     fn create_render_pipeline(
         device: &wgpu::Device,
         shader: &wgpu::ShaderModule,
-        surface_format: wgpu::TextureFormat,
+        format: TextureFormat,
     ) -> wgpu::RenderPipeline {
          let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Render Pipeline Layout"),
@@ -122,7 +120,7 @@ impl<'a> Renderer {
                 module: &shader,
                 entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: config.format,
+                    format: format,
                     blend: Some(wgpu::BlendState::REPLACE),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
@@ -141,21 +139,20 @@ impl<'a> Renderer {
             cache: Default::default(),
         })
     }
-
-    /// Отрисовывает всю сцену
-    pub fn render_scene(&mut self, scene: &Scene) {
-        // Реализация отрисовки сцены
-    }
-
+    
     /// Отрисовывает конкретный меш
-    pub fn render_mesh(&mut self, mesh_handle: Handle<Mesh>) {
-        if let Some(mesh) = self.assets.meshes.get(mesh_handle) {
-            self.queue.write_buffer(
-                &self.vertex_buffer,
-                0,
-                bytemuck::cast_slice(&mesh.vertices),
-            );
-        }
+    // pub fn render_mesh(&mut self, mesh_handle: Handle<Mesh>) {
+    //     if let Some(mesh) = self.assets.meshes.get(mesh_handle) {
+    //         self.queue.write_buffer(
+    //             &self.vertex_buffer,
+    //             0,
+    //             bytemuck::cast_slice(&mesh.vertices),
+    //         );
+    //     }
+    // }
+
+    pub fn resize(&mut self, width: u32, heighth: u32) {
+
     }
 }
 
@@ -187,13 +184,6 @@ impl Vertex {
             ],
         }
     }
-}
-
-/// Типы пайплайнов рендеринга
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum PipelineType {
-    /// Простой пайплайн для отрисовки мешей
-    Simple,
 }
 
 

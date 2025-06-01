@@ -1,10 +1,11 @@
 use std::{error::Error, fmt, path::Path};
 use gltf::json::extensions::scene;
+use wgpu::Device;
 
 use crate::res::mesh::Mesh;
 use super::{buffer::{to_vec, BufferData}, material::Material, model::Model, Handle, Resource, SceneKey};
 
-
+#[derive(Debug, Clone)] 
 pub struct Scene {
    pub models: Vec<Handle<Model>>
 }
@@ -102,7 +103,8 @@ impl Scene {
 pub fn load_scene_meshes(
     scene: gltf::Scene,
     buffers: Vec<BufferData>,
-    material_handles: Vec<Handle<Material>>
+    material_handles: Vec<Handle<Material>>,
+    device: Device
 )-> Result<Vec<Vec<Mesh>>,  Box<dyn std::error::Error>> {
     let buff = to_vec(buffers);
     let mut nodes = Vec::new();
@@ -115,6 +117,7 @@ pub fn load_scene_meshes(
                 &primitive, 
                 &buff,
                 material_handles.get(primitive.material().index().unwrap_or(0)).cloned(),
+                device.clone()
             ) {
                 Ok(mesh) =>  meshes.push(mesh),
                 Err(_) => todo!(),
@@ -129,7 +132,8 @@ pub fn load_scene_meshes(
 pub fn load_children_nodes_meshes(
     node: gltf::Node,
     buffers: Vec<BufferData>,
-    material_handles: Vec<Handle<Material>>
+    material_handles: Vec<Handle<Material>>,
+    device: Device
 )-> Result<Vec<Mesh>,  Box<dyn std::error::Error>> {
     let buff = to_vec(buffers);
     let children = node.children();
@@ -142,6 +146,7 @@ pub fn load_children_nodes_meshes(
                 &primitive, 
                 &buff,
                 material_handles.get(primitive.material().index().unwrap_or(0)).cloned(),
+                device.clone()
             ) {
                 Ok(mesh) =>  meshes.push(mesh),
                 Err(_) => todo!(),

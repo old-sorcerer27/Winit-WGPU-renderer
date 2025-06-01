@@ -53,6 +53,7 @@ pub fn load_gltf_image_data(
     let (data, format, uri) = match image.source() {
         Source::Uri { uri, mime_type } => {
             let path = base_path.ok_or_else(|| {
+                println!("BLEEEEEEEEEEEEEEEH Base path required for external images");
                 LoadImageDataError::new("Base path required for external images")
             })?.join(uri);
             
@@ -66,9 +67,12 @@ pub fn load_gltf_image_data(
             let format = match mime_type.as_deref() {
                 Some("image/png") => Format::R8G8B8A8,
                 Some("image/jpeg") => Format::R8G8B8,
-                _ => return Err(LoadImageDataError::new(format!(
-                    "Unsupported image mime type: {:?}", mime_type
-                ))),
+                _ => Format::R8G8B8,
+                // _ => {println!("BLEEEEEEEEEEEEEEEH Unsupported image mime type");
+                //     return Err(LoadImageDataError::new(format!(
+                //     "Unsupported image mime type: {:?}", mime_type
+                    
+                // )))},
             };
             
             (data, format, Some(uri.to_string()))
@@ -125,8 +129,8 @@ mod tests {
     fn test_load_embedded_image() {
         // Создаем временный GLB файл с встроенным изображением
         let mut temp_file = NamedTempFile::new().unwrap();
-        // let glb_data = include_bytes!("../../../test_assets/textured_cube.glb");
-        let glb_data = include_bytes!("../../test_assets/none_textured_cube.glb");
+        let glb_data = include_bytes!("../../test_assets/textured_cube.glb");
+        // let glb_data = include_bytes!("../../test_assets/none_textured_cube.glb");
         temp_file.write_all(glb_data).unwrap();
         
         let gltf = Gltf::open(temp_file.path()).unwrap();
@@ -138,7 +142,7 @@ mod tests {
         assert_eq!(images[0].format, Format::R8G8B8A8);
     }
 
-    // #[test]
+    #[test]
     // fn test_load_external_image() {
     //     // Создаем временную директорию с gltf и изображением
     //     let dir = tempfile::tempdir().unwrap();

@@ -1,6 +1,6 @@
-use diploma_thesis::res::asset_manager::AssetManager;
+use diploma_thesis::res::{asset_manager::AssetManager, texture::{self, get_texture_bind_group_layout, DEPTH_FORMAT}, vertex::Vertex};
 use gltf::Gltf;
-use wgpu::{util::DeviceExt, MemoryHints, PipelineCompilationOptions};
+use wgpu::{DepthStencilState, MemoryHints, PipelineCompilationOptions};
 use winit::{
     event::{Event, WindowEvent}, event_loop::EventLoop, window::{Window, WindowBuilder}
 };
@@ -8,14 +8,6 @@ use pollster::block_on;
 use glam::Mat4;
 
 use std::{path::Path, time::Instant};
-
-#[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct Vertex {
-    position: [f32; 3],
-    color: [f32; 3],
-    test: [f32; 2],
-}
 
 fn main() {
     env_logger::init();
@@ -31,7 +23,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
         ..Default::default()
     });
 
-    let surface = unsafe { instance.create_surface(&window) }.unwrap();
+    let surface = { instance.create_surface(&window) }.unwrap();
 
     // Выбор адаптера (GPU)
     let adapter = instance
@@ -49,6 +41,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
             &wgpu::DeviceDescriptor {
                 label: None,
                 required_features: wgpu::Features::empty(),
+                // required_features: wgpu::Features::POLYGON_MODE_LINE,
                 required_limits: wgpu::Limits::default(),
                 memory_hints: MemoryHints::default(),
                 trace: wgpu::Trace::Off,
@@ -56,17 +49,6 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
         )
         .await
         .unwrap();
-
-    
-    // // 2. Загружаем GLTF модель
-    // let gltf_path = Path::new("test_assets/cube_model");
-    // let gltf = Gltf::open(gltf_path).unwrap();
-
-    // // Загружаем ассеты
-    // let mut assets = AssetManager::new();
-    // assets.load_gltf_meshes(&gltf, "assets/", &device, &queue);
-
-
 
 
 
@@ -87,72 +69,10 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("Shader"),
         source: wgpu::ShaderSource::Wgsl(
-            include_str!("../shaders/cube.wgsl").into() 
+            include_str!("../examples/examples_shaders/cube_copy.wgsl").into() 
         ),
     });
     
-    let vertices = [
-        Vertex { position: [-1.0, -1.0,  1.0], color: [1.0, 0.0, 0.0], test: [1.0, 1.0]},
-        Vertex { position: [ 1.0, -1.0,  1.0], color: [0.0, 1.0, 0.0], test: [1.0, 1.0]},
-        Vertex { position: [ 1.0,  1.0,  1.0], color: [0.0, 0.0, 1.0], test: [1.0, 1.0]},
-        Vertex { position: [-1.0,  1.0,  1.0], color: [1.0, 1.0, 0.0], test: [1.0, 1.0]},
-        Vertex { position: [-1.0, -1.0, -1.0], color: [1.0, 0.0, 1.0], test: [1.0, 1.0]},
-        Vertex { position: [ 1.0, -1.0, -1.0], color: [0.0, 1.0, 1.0], test: [1.0, 1.0]},
-        Vertex { position: [ 1.0,  1.0, -1.0], color: [1.0, 1.0, 1.0], test: [1.0, 1.0]},
-        Vertex { position: [-1.0,  1.0, -1.0], color: [0.0, 0.0, 0.0], test: [1.0, 1.0]},
-    ];
-    
-    // Индексы (12 треугольников)
-    let indices: [u16; 36] = [
-        0, 1, 2, 2, 3, 0, // Перед
-        1, 5, 6, 6, 2, 1, // Право
-        7, 6, 5, 5, 4, 7, // Зад
-        4, 0, 3, 3, 7, 4, // Лево
-        4, 5, 1, 1, 0, 4, // Низ
-        3, 2, 6, 6, 7, 3, // Верх
-    ];
-
-
-    //        // Вершины куба (8 вершин)
-    // let vertices = [
-    //     // Передняя грань
-    //     Vertex { position: [1.0, 1.0,  -1.0], color: [1.0, 0.0, 0.0] },
-    //     Vertex { position: [-1.0, 1.0,  -1.0], color: [0.0, 1.0, 0.0] },
-    //     Vertex { position: [-1.0, 1.0,  1.0], color: [0.0, 0.0, 1.0] },
-    //     Vertex { position: [1.0, 1.0,  1.0], color: [1.0, 1.0, 0.0] },
-    //     Vertex { position: [1.0, -1.0,  1.0], color: [1.0, 0.0, 1.0] },
-    //     Vertex { position: [1.0, 1.0,  1.0], color: [0.0, 1.0, 1.0] },
-    //     Vertex { position: [-1.0, 1.0,  1.0], color: [0.0, 0.0, 1.0] },
-    //     Vertex { position: [-1.0, -1.0,  1.0], color: [0.0, 0.0, 1.0] },
-    //     Vertex { position: [-1.0, -1.0,  1.0], color: [0.0, 0.0, 1.0] },
-    //     Vertex { position: [-1.0, 1.0,  1.0], color: [0.0, 0.0, 1.0] },
-    //     Vertex { position: [-1.0, 1.0,  -1.0], color: [0.0, 1.0, 0.0] },
-    // ];
-    
-    // // Индексы (12 треугольников)
-    // let indices: [u16; 36] = [
-    //     0, 1, 2, 2, 3, 0, // Перед
-    //     1, 5, 6, 6, 2, 1, // Право
-    //     7, 6, 5, 5, 4, 7, // Зад
-    //     4, 0, 3, 3, 7, 4, // Лево
-    //     4, 5, 1, 1, 0, 4, // Низ
-    //     3, 2, 6, 6, 7, 3, // Верх
-    // ];
-    
-    // Буферы
-    let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Vertex Buffer"),
-        contents: bytemuck::cast_slice(&vertices),
-        usage: wgpu::BufferUsages::VERTEX,
-    });
-    
-    let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Index Buffer"),
-        contents: bytemuck::cast_slice(&indices),
-        usage: wgpu::BufferUsages::INDEX,
-    });
-    
-    // Uniform буфер для матрицы
     let transform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("Transform Buffer"),
         size: std::mem::size_of::<Mat4>() as u64,
@@ -184,9 +104,49 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
     });
 
 
+    // let gltf_path = Path::new("examples/examples_assets/tesseract_cube.glb");
+    let mut assets = AssetManager::new();
+
+    let gltf_path = Path::new("examples/examples_assets/cube_model/scene.gltf");
+    let gltf = Gltf::open(gltf_path).unwrap();
+    let meshes = assets.load_gltf_meshes(&gltf, "examples/examples_assets/cube_model/", &device, &queue);
+
+    // let gltf_path = Path::new("examples/examples_assets/cube.glb");
+    // let gltf = Gltf::open(gltf_path).unwrap();
+    // let meshes2 = assets.load_gltf_meshes(&gltf, "examples/examples_assets/", &device, &queue);
+
+    let cube = assets.meshes.get(
+        match meshes{
+        Ok(asset) => {asset[0].clone()},
+        Err(_) => todo!(),
+    });
+
+    let material = match assets.materials.get_mut(cube.unwrap().material.clone().unwrap()){
+        Some(mat) => mat,
+        None => todo!(),
+    };
+
+    let texture = match assets.textures.get_mut(material.base_color_texture.clone().unwrap()){
+        Some(text) => text,
+        None => todo!(),
+    };
+
+    material.create_bind_group(
+        &device, 
+        None, 
+        Some(&texture.view), 
+        Some(&texture.sampler)
+    );
+
+    let mut depth_texture = texture::GpuTexture::create_depth_texture(&device, &config, "depth_texture");
+
+
     let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("Render Pipeline Layout"),
-        bind_group_layouts: &[&transform_bind_group_layout],
+        bind_group_layouts: &[
+                &transform_bind_group_layout,
+                &get_texture_bind_group_layout(&device),
+            ],
         push_constant_ranges: &[],
     });
 
@@ -196,27 +156,9 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
-            buffers: &[wgpu::VertexBufferLayout {
-                array_stride: std::mem::size_of::<Vertex>() as u64,
-                step_mode: wgpu::VertexStepMode::Vertex,
-                attributes: &[
-                    wgpu::VertexAttribute {
-                        offset: 0,
-                        shader_location: 0,
-                        format: wgpu::VertexFormat::Float32x3,
-                    },
-                    wgpu::VertexAttribute {
-                        offset: std::mem::size_of::<[f32; 3]>() as u64,
-                        shader_location: 1,
-                        format: wgpu::VertexFormat::Float32x3,
-                    },
-                         wgpu::VertexAttribute {
-                        offset: std::mem::size_of::<[f32; 6]>() as u64,
-                        shader_location: 2,
-                        format: wgpu::VertexFormat::Float32x2,
-                    },
-                ],
-            }],
+            buffers: &[
+                Vertex::desc(),
+            ],
             compilation_options: PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {
@@ -230,17 +172,34 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
             compilation_options: PipelineCompilationOptions::default(),
         }),
         primitive: wgpu::PrimitiveState {
-            topology: wgpu::PrimitiveTopology::TriangleList,
+            topology: wgpu::PrimitiveTopology:: TriangleList,
             strip_index_format: None,
             front_face: wgpu::FrontFace::Ccw,
             cull_mode: Some(wgpu::Face::Back),
-            ..Default::default()
+            polygon_mode: wgpu::PolygonMode::Fill,
+            unclipped_depth: false,
+            conservative: false,
         },
-        depth_stencil: None,
+        // primitive: wgpu::PrimitiveState {
+        //     polygon_mode: wgpu::PolygonMode::Line,
+        //     cull_mode: None,
+        //     ..Default::default()
+        // },
+        // depth_stencil: None,
+        depth_stencil: Some(DepthStencilState{
+            format: DEPTH_FORMAT,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::Less,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
         cache: Default::default(),
     });
+
+
+
 
     let start_time = Instant::now();
 
@@ -257,13 +216,14 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                 config.width = new_size.width;
                 config.height = new_size.height;
                 surface.configure(&device, &config);
+                depth_texture = texture::GpuTexture::create_depth_texture(&device, &config, "depth_texture");
             }
             Event::WindowEvent {
                     event: WindowEvent::RedrawRequested,
                     ..
                 } => {
                 let elapsed = start_time.elapsed().as_secs_f32();
-                let model = Mat4::from_rotation_y(elapsed) * Mat4::from_rotation_z(elapsed);
+                let model = Mat4::from_rotation_x(elapsed);
 
                 queue.write_buffer(
                     &transform_buffer,
@@ -290,16 +250,29 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                                 store: wgpu::StoreOp::Store,
                             },
                         })],
-                        depth_stencil_attachment: None,
                         timestamp_writes: Default::default(),
                         occlusion_query_set: Default::default(),
+                        // depth_stencil_attachment: None,
+                        depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                            view: &depth_texture.view,
+                            depth_ops: Some(wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(1.0),
+                                store: wgpu::StoreOp::Store,
+                            }),
+                            stencil_ops: None,
+                        }),
                     });
-
+                    render_pass.set_viewport( 
+                        0.0, 0.0, 
+                        config.width as f32, config.height as f32, 
+                        0.0, 1.0
+                    );
                     render_pass.set_pipeline(&render_pipeline);
                     render_pass.set_bind_group(0, &transform_bind_group, &[]);
-                    render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-                    render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-                    render_pass.draw_indexed(0..indices.len() as u32, 0, 0..1);
+                    render_pass.set_bind_group(1, &material.bind_group, &[]);
+                    render_pass.set_vertex_buffer(0, cube.unwrap().vertex_buffer.slice(..));
+                    render_pass.set_index_buffer(cube.unwrap().index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                    render_pass.draw_indexed(0..cube.unwrap().indices.len() as u32, 0, 0..1);
                 }
 
                 queue.submit(std::iter::once(encoder.finish()));

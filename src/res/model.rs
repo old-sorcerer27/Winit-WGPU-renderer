@@ -1,10 +1,11 @@
 use gltf::mesh::Mode;
 
-use super::{animation::Animation, material::Material, mesh::Mesh, Handle, ModelKey, Resource};
+use super::{animation::Animation, material::Material, mesh::{Mesh}, Handle, ModelKey, Resource};
 
+#[derive(Debug, Clone)] 
 pub struct Model {
-    meshes: Vec<Handle<Mesh>>,
-    // animations: Vec<Handle<Animation>>,
+    pub meshes: Vec<Handle<Mesh>>,
+    pub animations: Option<Vec<Handle<Animation>>>,
 }
 
 impl Resource for Model {
@@ -14,7 +15,7 @@ impl Resource for Model {
     fn load(model: Self::LoadParams) -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Self {
             meshes: model.meshes,
-            // animations: model.animations
+            animations: model.animations
         })
     }
 }

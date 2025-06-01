@@ -11,6 +11,7 @@
 
 pub mod storage;
 pub mod asset_manager;
+pub mod vertex;
 pub mod mesh;
 pub mod texture;
 pub mod material;
@@ -127,10 +128,13 @@ pub fn load_gltf_file_data(
     gltf: &Gltf,
     base_path: Option<&Path>,
 ) -> Result<(Vec<BufferData>, Vec<ImageData>), Box<dyn std::error::Error>> {
-    let buffers = load_gltf_buffers(gltf, base_path).unwrap();
+    let buffers =  match load_gltf_buffers(gltf, base_path){
+        Ok(buffers) => buffers,
+        Err(_) => return Err("Error loading file data (buffers)".into()),
+    };
     match load_gltf_images(gltf, base_path, &buffers) {
         Ok(images) => return Ok((buffers, images)),
-        Err(_) => return Err("Error loading file data".into()),
+        Err(_) => return Err("Error loading file data (images)".into()),
     } 
 }
 

@@ -1,17 +1,40 @@
-use std::path::Path;
+use core::fmt;
+use std::{error::Error, path::Path};
 
-use gltf::{json::extensions::texture, Gltf};
+use gltf::Gltf;
 
-use super::{buffer::to_vec, load_gltf_file_data, material::{LoadMaterialError, Material}, mesh::Mesh, model::Model, scene::{ load_scene_meshes, Scene}, storage::Storage, texture::{load_gltf_texture_source_data, GpuTexture}, Handle};
+use super::{buffer::{load_gltf_buffers, to_vec}, load_gltf_file_data, material::Material, mesh::Mesh, 
+model::Model, scene::{load_scene_meshes, Scene}, storage::Storage, texture::{load_gltf_texture_source_data, GpuTexture}, Handle};
 
 
-
+#[derive(Debug, Clone)] 
 pub struct AssetManager {
     pub scenes: Storage<Scene>,
     pub models: Storage<Model>,
     pub meshes: Storage<Mesh>,
     pub textures: Storage<GpuTexture>,
     pub materials: Storage<Material>,
+}
+
+#[derive(Debug)]
+pub struct LoadAssetError {
+    message: String,
+}
+
+impl fmt::Display for LoadAssetError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Asset loading error: {}", self.message)  // Исправлено сообщение
+    }
+}
+
+impl Error for LoadAssetError {}
+
+impl LoadAssetError {
+    pub fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+        }
+    }
 }
 
 impl AssetManager {
@@ -34,7 +57,10 @@ impl AssetManager {
         queue: &wgpu::Queue,
         )-> Result<Vec<Handle<Mesh>>,  Box<dyn std::error::Error>> {
         let base_path: Option<&Path> = Some(Path::new(&base_path));
-        let (buffers, _) = load_gltf_file_data(gltf, base_path).unwrap();
+        let buffers = match load_gltf_buffers(gltf, base_path) {
+            Ok(buffers) => buffers,
+            Err(_) => return Err(Box::new(LoadAssetError::new("Load buffers error"))),
+        };
 
 
         let mut material_handles: Vec<Handle<Material>> = Vec::new();
@@ -43,7 +69,7 @@ impl AssetManager {
             
             let image_data = match load_gltf_texture_source_data(base_path, pbr, &buffers){
                 Ok(data) => {data},
-                Err(_) => {return Err(Box::new(LoadMaterialError::new("Load texture source error")))},
+                Err(_) => {return Err(Box::new(LoadAssetError::new("Load texture source error")))},
             };
 
             match  GpuTexture::from_bytes(device, queue, &image_data, "lable") {
@@ -51,14 +77,14 @@ impl AssetManager {
                     match self.textures.load(texture){
                         Ok(t_h) => {
                             match self.materials.load(Material::from_gltf_texture(&material, t_h)){
-                                Ok(h) => {material_handles.push(h)},
-                                Err(_) => {return Err(Box::new(LoadMaterialError::new("Load texture source error")))},
+                                Ok(h_m) => {material_handles.push(h_m)},
+                                Err(_) => {return Err(Box::new(LoadAssetError::new("Load texture source error")))},
                             }
                         },
-                        Err(_) => {return Err(Box::new(LoadMaterialError::new("Load texture source error")))},
+                        Err(_) => {return Err(Box::new(LoadAssetError::new("Load texture source error")))},
                     };
                 },
-                Err(_) => {return Err(Box::new(LoadMaterialError::new("Load texture error")))},
+                Err(_) => {return Err(Box::new(LoadAssetError::new("Load texture error")))},
             }
         }
        
@@ -69,10 +95,11 @@ impl AssetManager {
                     &primitive,
                     &to_vec(buffers.clone()),
                     material_handles.get(primitive.material().index().unwrap_or(0)).cloned(),
+                    device.clone(),
                 )?;
                 match self.meshes.load(mesh) {
                     Ok(m) => {mesh_handles.push(m);},
-                    Err(_) => {return Err(Box::new(LoadMaterialError::new("Load texture error")))},
+                    Err(_) => {return Err(Box::new(LoadAssetError::new("Load texture error")))},
                 }
             }
         }
@@ -97,7 +124,7 @@ impl AssetManager {
             
     //         let image_data = match load_gltf_texture_source_data(base_path, pbr, &buffers){
     //             Ok(data) => {data},
-    //             Err(_) => {return Err(Box::new(LoadMaterialError::new("Load texture source error")))},
+    //             Err(_) => {return Err(Box::new(LoadAssetError::new("Load texture source error")))},
     //         };
 
     //         match  GpuTexture::from_bytes(device, queue, &image_data, "lable") {
@@ -106,13 +133,13 @@ impl AssetManager {
     //                     Ok(t_h) => {
     //                         match self.materials.load(Material::from_gltf_texture(&material, t_h)){
     //                             Ok(h) => {material_handles.push(h)},
-    //                             Err(_) => {return Err(Box::new(LoadMaterialError::new("Load texture source error")))},
+    //                             Err(_) => {return Err(Box::new(LoadAssetError::new("Load texture source error")))},
     //                         }
     //                     },
-    //                     Err(_) => {return Err(Box::new(LoadMaterialError::new("Load texture source error")))},
+    //                     Err(_) => {return Err(Box::new(LoadAssetError::new("Load texture source error")))},
     //                 };
     //             },
-    //             Err(_) => {return Err(Box::new(LoadMaterialError::new("Load texture error")))},
+    //             Err(_) => {return Err(Box::new(LoadAssetError::new("Load texture error")))},
     //         }
     //     }
 
@@ -149,3 +176,7 @@ impl AssetManager {
     // }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+}
