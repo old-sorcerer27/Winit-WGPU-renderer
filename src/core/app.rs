@@ -3,7 +3,7 @@
 // use gltf::Gltf;
 // use winit::{dpi::PhysicalSize, event_loop::{EventLoop, EventLoopWindowTarget}};
 
-// use crate::{res::asset_manager::AssetManager, scene::GpuScene};
+// use crate::scene::AppScene;
 
 // use super::{renderer::Renderer, window::WindowManager};
 
@@ -14,7 +14,7 @@
 //     /// Рендерер
 //     pub renderer: Renderer,
 //     /// Текущая сцена на GPU
-//     pub scene: GpuScene,
+//     pub scene: AppScene,
 // }
 
 // impl<'a> App<'a> {
@@ -28,10 +28,10 @@
 //         let gltf = Gltf::open(gltf_path)?;
         
 //         // 3. Инициализируем рендерер
-//         let renderer = Renderer::new(&window, &gltf, "assets/").await?;
+//         let (renderer, meshes) = Renderer::new(&window, &gltf, "assets/").await?;
         
 //         // 4. Создаем сцену по умолчанию
-//         let scene = GpuScene::default();
+//         let scene = AppScene::default();
 
 //         Ok(Self {
 //             window,
@@ -59,34 +59,34 @@
 //         self.scene.update(delta_time);
 //     }
 
-//     /// Обрабатывает события окна
-//     fn handle_window_event(
-//         &mut self,
-//         event: winit::event::WindowEvent,
-//         // control_flow: &mut winit::event_loop::ControlFlow,
-//         elwt: EventLoopWindowTarget<()>
-//     ) {
-//         match event {
-//             winit::event::WindowEvent::CloseRequested => {
-//                 // *control_flow = winit::event_loop::ControlFlow::Exit;
-//                 elwt.exit();
-//             }
-//             winit::event::WindowEvent::Resized(size) => {
-//                 self.window.handle_resize(size);
-//                 // self.renderer.resize(size.width, size.height);
-//             }
-//             winit::event::WindowEvent::RedrawRequested => {
-//                 self.renderer.render_scene(&self.scene);
-//             }
-//             _ => {}
-//         }
-//     }
+
+    // fn handle_window_event(
+    //     &mut self,
+    //     event: winit::event::WindowEvent,
+    //     // control_flow: &mut winit::event_loop::ControlFlow,
+    //     elwt: EventLoopWindowTarget<()>
+    // ) {
+    //     match event {
+    //         winit::event::WindowEvent::CloseRequested => {
+    //             // *control_flow = winit::event_loop::ControlFlow::Exit;
+    //             elwt.exit();
+    //         }
+    //         winit::event::WindowEvent::Resized(size) => {
+    //             self.window.handle_resize(size);
+    //             // self.renderer.resize(size.width, size.height);
+    //         }
+    //         winit::event::WindowEvent::RedrawRequested => {
+    //             self.renderer.render_scene(&self.scene);
+    //         }
+    //         _ => {}
+    //     }
+    // }
 
 
-//     /// Обрабатывает изменение размера окна
-//     pub fn resize(&mut self, size: PhysicalSize<u32>) {
-//         self.window.handle_resize(size);
-//         self.renderer.resize(size.width, size.height);
-//     }
+    // /// Обрабатывает изменение размера окна
+    // pub fn resize(&mut self, size: PhysicalSize<u32>) {
+    //     self.window.handle_resize(size);
+    //     self.renderer.resize(size.width, size.height);
+    // }
 // }
 

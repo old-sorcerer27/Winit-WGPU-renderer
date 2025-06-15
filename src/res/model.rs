@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use gltf::mesh::Mode;
 
 use super::{animation::Animation, material::Material, mesh::{Mesh}, Handle, ModelKey, Resource};
@@ -13,18 +15,7 @@ impl Resource for Model {
     type LoadParams = Model; 
     
     fn load(model: Self::LoadParams) -> Result<Self, Box<dyn std::error::Error>> {
-        Ok(Self {
-            meshes: model.meshes,
-            animations: model.animations
-        })
+        Ok(model) 
     }
 }
 
-
-// impl Model {
-//     pub fn load_model(
-
-//     )-> Self {
-        
-//     }
-// }

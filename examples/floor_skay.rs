@@ -2,7 +2,7 @@ use diploma_thesis::res::{asset_manager::AssetManager, texture};
 use gltf::Gltf;
 use wgpu::{util::DeviceExt, MemoryHints, PipelineCompilationOptions};
 use winit::{
-    event::{Event, WindowEvent}, event_loop::EventLoop, window::{Window, WindowBuilder}
+    event::{ElementState, Event, WindowEvent}, event_loop::EventLoop, keyboard::{KeyCode, PhysicalKey}, window::{Window, WindowBuilder}
 };
 use pollster::block_on;
 use glam::Mat4;
@@ -75,7 +75,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("Shader"),
         source: wgpu::ShaderSource::Wgsl(
-            include_str!("../shaders/cube.wgsl").into() 
+            include_str!("../examples/shaders/cube.wgsl").into() 
         ),
     });
     
@@ -112,17 +112,18 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
         contents: bytemuck::cast_slice(&indices),
         usage: wgpu::BufferUsages::INDEX,
     });
-    
-    // Uniform буфер для матрицы
-    let transform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("Transform Buffer"),
-        size: std::mem::size_of::<Mat4>() as u64,
+
+    let mut camera_state = CameraState::new();
+    let mut camera_uniform = CameraUniform::new();
+
+    let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Camera Buffer"),
+        contents: bytemuck::cast_slice(&[camera_uniform]),
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        mapped_at_creation: false,
     });
 
-    let transform_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("Transform Bind Group Layout"),
+    let camera_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("Camera Bind Group Layout"),
         entries: &[wgpu::BindGroupLayoutEntry {
             binding: 0,
             visibility: wgpu::ShaderStages::VERTEX,
@@ -135,19 +136,19 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
         }],
     });
 
-    let transform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("Transform Bind Group"),
-        layout: &transform_bind_group_layout,
+    let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("Camera Bind Group"),
+        layout: &camera_bind_group_layout,
         entries: &[wgpu::BindGroupEntry {
             binding: 0,
-            resource: transform_buffer.as_entire_binding(),
+            resource: camera_buffer.as_entire_binding(),
         }],
     });
 
 
     let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("Render Pipeline Layout"),
-        bind_group_layouts: &[&transform_bind_group_layout],
+        bind_group_layouts: &[&camera_bind_group_layout],
         push_constant_ranges: &[],
     });
 
@@ -211,9 +212,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
         cache: Default::default(),
     });
 
-    let mut depth_texture = texture::GpuTexture::create_depth_texture(&device, &config, "depth_texture");
-
-    let start_time = Instant::now();
+    let depth_texture = texture::GpuTexture::create_depth_texture(&device, &config, "depth_texture");
 
     event_loop.run( |event, elwt: &winit::event_loop::EventLoopWindowTarget<()>| {
         match event {
@@ -233,25 +232,12 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                     event: WindowEvent::RedrawRequested,
                     ..
                 } => {
-                let elapsed = start_time.elapsed().as_secs_f32();
-                let model = Mat4::from_rotation_y(elapsed) * Mat4::from_rotation_z(elapsed);
-
-                // print!("{}", model);
-
-                queue.write_buffer(
-                    &transform_buffer,
-                    0,
-                    bytemuck::cast_slice(&model.to_cols_array_2d()),
-                );
-
 
                 let frame = surface.get_current_texture().unwrap();
                 let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
-
                 let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("Render Encoder"),
                 });
-
                 {
                     let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                         label: Some("Render Pass"),
@@ -274,11 +260,20 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                         timestamp_writes: Default::default(),
                         occlusion_query_set: Default::default(),
                     });
+
+                    let aspect_ratio = config.width as f32 / config.height as f32;
+                    camera_state.update();
+                    let view_proj = camera_state.calculate_view_projection(aspect_ratio);
+                    camera_uniform.update_view_proj(view_proj);
+                    queue.write_buffer(
+                        &camera_buffer,
+                        0,
+                        bytemuck::cast_slice(&[camera_uniform]),
+                    );
                     
                     render_pass.set_viewport(0.0, 0.0, config.width as f32, config.height as f32, 0.0, 1.0);
-
                     render_pass.set_pipeline(&render_pipeline);
-                    render_pass.set_bind_group(0, &transform_bind_group, &[]);
+                    render_pass.set_bind_group(0, &camera_bind_group, &[]);
                     render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
                     render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
                     render_pass.draw_indexed(0..indices.len() as u32, 0, 0..1);
@@ -288,9 +283,174 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                 frame.present();
                 window.request_redraw();
             }
+            Event::WindowEvent {
+                event: WindowEvent::KeyboardInput {
+                    event: winit::event::KeyEvent { 
+                        physical_key: keycode,
+                        state, 
+                        .. 
+                    },
+                ..
+                }, .. } => {
+                let is_pressed = state == ElementState::Pressed;
+                match keycode {
+                    PhysicalKey::Code(code) => {
+                        match code {
+                            KeyCode::KeyW => camera_state.is_forward_pressed = is_pressed,
+                            KeyCode::KeyS  =>camera_state.is_backward_pressed = is_pressed,
+                            KeyCode::KeyA => camera_state.is_left_pressed = is_pressed,
+                            KeyCode::KeyD  => camera_state.is_right_pressed = is_pressed,
+                            KeyCode::Space => camera_state.is_up_pressed = is_pressed,
+                            KeyCode::ShiftLeft => camera_state.is_down_pressed = is_pressed,
+                            KeyCode::ArrowDown => camera_state.is_rotate_down_pressed = is_pressed,
+                            KeyCode::ArrowUp => camera_state.is_rotate_up_pressed = is_pressed,
+                            KeyCode::ArrowLeft => camera_state.is_rotate_left_pressed = is_pressed,
+                            KeyCode::ArrowRight => camera_state.is_rotate_right_pressed = is_pressed,
+                            _ => {}
+                        }
+                    }
+                    _ => (),
+                }
+            }
             _ => (),
         }
     }).unwrap();
 }
 
 
+
+
+use glam::{Vec3, Quat};
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct CameraUniform {
+    view_proj: [[f32; 4]; 4],
+}
+
+impl CameraUniform {
+    pub fn new() -> Self {
+        Self {
+            view_proj: Mat4::IDENTITY.to_cols_array_2d(),
+        }
+    }
+
+    pub fn update_view_proj(&mut self, view_proj: Mat4) {
+        self.view_proj = view_proj.to_cols_array_2d();
+    }
+}
+
+struct CameraState {
+    pub position: Vec3,
+    pub rotation: Quat,
+    pub speed: f32,
+    pub rotation_speed: f32,
+
+    pub near: f32,
+    pub far: f32,
+
+    pub is_forward_pressed: bool,
+    pub is_backward_pressed: bool,
+    pub is_left_pressed: bool,
+    pub is_right_pressed: bool,
+    pub is_up_pressed: bool,
+    pub is_down_pressed: bool,
+    pub is_rotate_left_pressed: bool,
+    pub is_rotate_right_pressed: bool,
+    pub is_rotate_up_pressed: bool,
+    pub is_rotate_down_pressed: bool,
+}
+
+impl CameraState {
+    fn new() -> Self {
+         // Начальная позиция - на расстоянии 3 единицы перед кубом по оси Z
+        let position = glam::Vec3::new(0.0, 0.0, 3.0);
+        
+        // Начальный поворот - смотрим вдоль отрицательной оси Z (на куб)
+        let rotation = Quat::from_rotation_y(0.0); // Без поворота по Y
+        
+        Self {
+            position,
+            rotation,
+            speed: 0.1,
+            rotation_speed: 0.01,
+            near: 0.1,
+            far: 100.,
+
+            is_forward_pressed: false,
+            is_backward_pressed: false,
+            is_left_pressed: false,
+            is_right_pressed: false,
+            is_up_pressed: false,
+            is_down_pressed: false,
+            is_rotate_left_pressed: false,
+            is_rotate_right_pressed: false,
+            is_rotate_up_pressed: false,
+            is_rotate_down_pressed: false,
+        }
+    }
+
+   fn calculate_view_projection(&self, aspect_ratio: f32) -> Mat4 {
+        let projection = Mat4::perspective_rh(
+            45.0f32.to_radians(),
+            aspect_ratio,
+            0.1,
+            100.0,
+        );
+
+        // Получаем матрицу вращения из кватерниона
+        let rotation_matrix = Mat4::from_quat(self.rotation);
+        
+        // Создаем матрицу трансляции (обратную позиции камеры)
+        let translation_matrix = Mat4::from_translation(-self.position);
+        
+        // Комбинируем вращение и трансляцию для получения view матрицы
+        let view = rotation_matrix * translation_matrix;
+        
+        projection * view
+    }
+
+    fn update(&mut self) {
+         // Вращение камеры
+        if self.is_rotate_left_pressed {
+            self.rotation *= Quat::from_rotation_y(self.rotation_speed);
+        }
+        if self.is_rotate_right_pressed {
+            self.rotation *= Quat::from_rotation_y(-self.rotation_speed);
+        }
+        if self.is_rotate_up_pressed {
+            self.rotation *= Quat::from_rotation_x(self.rotation_speed);
+        }
+        if self.is_rotate_down_pressed {
+            self.rotation *= Quat::from_rotation_x(-self.rotation_speed);
+        }
+
+        // Нормализуем кватернион, чтобы избежать дрифта
+        self.rotation = self.rotation.normalize();
+
+        // Получаем направления вперед, вправо и вверх из кватерниона
+        let forward = self.rotation * -Vec3::Z;
+        let right = self.rotation * Vec3::X;
+        let up = self.rotation * Vec3::Y;
+
+        // Движение камеры
+        if self.is_forward_pressed {
+            self.position += forward * self.speed;
+        }
+        if self.is_backward_pressed {
+            self.position -= forward * self.speed;
+        }
+        if self.is_left_pressed {
+            self.position -= right * self.speed;
+        }
+        if self.is_right_pressed {
+            self.position += right * self.speed;
+        }
+        if self.is_up_pressed {
+            self.position += up * self.speed;
+        }
+        if self.is_down_pressed {
+            self.position -= up * self.speed;
+        }
+    }
+}

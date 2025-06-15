@@ -1,9 +1,10 @@
-struct Transform {
-    model: mat4x4<f32>,
+struct Camera {
+    view_proj: mat4x4<f32>,
 }
 
 @group(0) @binding(0)
-var<uniform> transform: Transform;
+var<uniform> camera: Camera;
+
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
@@ -17,7 +18,7 @@ fn vs_main(
     @location(2) tex_coords: vec2<f32>,
 ) -> VertexOutput {
     var output: VertexOutput;
-    output.clip_position = transform.model * vec4<f32>(position * 0.5, 1.0);
+    output.clip_position = camera.view_proj * vec4<f32>(position, 1.0);
     output.color = color;
     return output;
 }
@@ -26,4 +27,3 @@ fn vs_main(
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     return vec4<f32>(input.color, 1.0);
 }
-

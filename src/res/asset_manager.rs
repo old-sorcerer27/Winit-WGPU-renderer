@@ -1,10 +1,9 @@
 use core::fmt;
 use std::{error::Error, path::Path};
 
-use gltf::Gltf;
+use gltf::{Gltf};
 
-use super::{buffer::{load_gltf_buffers, to_vec}, load_gltf_file_data, material::Material, mesh::Mesh, 
-model::Model, scene::{load_scene_meshes, Scene}, storage::Storage, texture::{load_gltf_texture_source_data, GpuTexture}, Handle};
+use super::{buffer::{load_gltf_buffers, to_vec}, camera::Camera, material::Material, mesh::Mesh, model::Model, scene::Scene, storage::Storage, texture::{load_gltf_texture_source_data, GpuTexture}, Handle};
 
 
 #[derive(Debug, Clone)] 
@@ -14,6 +13,7 @@ pub struct AssetManager {
     pub meshes: Storage<Mesh>,
     pub textures: Storage<GpuTexture>,
     pub materials: Storage<Material>,
+    pub cameras: Storage<Camera>,
 }
 
 #[derive(Debug)]
@@ -45,9 +45,18 @@ impl AssetManager {
             meshes: Storage::new(),
             textures: Storage::new(),
             materials: Storage::new(),
+            cameras: Storage::new(),
         }
     }
     
+    pub fn load_from_directory(
+        &mut self,
+        base_path: &str,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) {
+        
+    }
 
     pub fn load_gltf_meshes<'a>(
         &mut self,

@@ -1,3 +1,6 @@
+#import camera::Camera
+#import lighting::{PointLight, calculate_lighting}
+
 struct Transform {
     model: mat4x4<f32>,
     // view: mat4x4<f32>,
@@ -55,6 +58,9 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let texture_color = textureSample(base_color_texture, texture_sampler, input.tex_coords).rgb;
     let light_dir = normalize(vec3<f32>(1.0, 1.0, 1.0));
+    // let view_dir = normalize(camera.view_pos.xyz - in.world_position);
+    // let half_dir = normalize(view_dir + light_dir);
+
     let light_color = vec3<f32>(1.0, 1.0, 1.0);
     let ambient = 0.1;
     let diffuse = max(dot(input.normal, light_dir), 0.0);
@@ -62,3 +68,4 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 
     return vec4<f32>(texture_color * lighting * light_color, 1.0);
 }
+

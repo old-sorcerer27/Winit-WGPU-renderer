@@ -89,7 +89,7 @@ impl Mesh {
         });
 
         println!("{:?}", vertices);
-        println!("{:?}", indices);
+        // println!("{:?}", indices);
 
         Ok(Self {
             material,
@@ -103,6 +103,4 @@ impl Mesh {
         
     }
 }
-
-
 

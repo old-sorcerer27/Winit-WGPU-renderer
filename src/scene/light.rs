@@ -1,113 +1,111 @@
-use std::ops::Range;
+use glam::{Mat4, Vec3, Vec4};
+use wgpu::{util::DeviceExt, BindGroupDescriptor, BindGroupLayout, Buffer, Device};
 
-use glam::Vec3;
 
-use crate::res::{mesh::Mesh, model::Model};
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct LightUniform {
+    view_position: Vec4,
+    view_proj: Mat4,
+}
+
+impl LightUniform {
+    pub fn create_buffer(
+        device: &wgpu::Device, 
+        uniform: LightUniform
+    )-> Buffer{
+        device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("light_uniform_buffer"),
+            contents: unsafe {
+                std::slice::from_raw_parts(
+                    &uniform as *const _ as *const u8,
+                    std::mem::size_of::<LightUniform>()
+                )
+            },
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        })
+    }
+}
+
 
 pub enum LightType {
-    Directional {
-        direction: Vec3,
-        intensity: f32,
-    },
+    Directional,
     Point {
-        position: Vec3,
         range: f32,
-        intensity: f32,
     },
     Spot {
-        position: Vec3,
-        direction: Vec3,
         angle: f32,
         range: f32,
-        intensity: f32,
     },
 }
 
 pub struct Light {
     pub light_type: LightType,
-    pub color: [f32; 3],
+    pub color: Vec3,
     pub shadows_enabled: bool,
+    pub intensity: f32,
+    pub bind_group: Option<wgpu::BindGroup>,
 }
 
-pub trait DrawLight<'a> {
-    fn draw_light_mesh(
-        &mut self,
-        mesh: &'a Mesh,
-        camera_bind_group: &'a wgpu::BindGroup,
-        light_bind_group: &'a wgpu::BindGroup,
-    );
-    fn draw_light_mesh_instanced(
-        &mut self,
-        mesh: &'a Mesh,
-        instances: Range<u32>,
-        camera_bind_group: &'a wgpu::BindGroup,
-        light_bind_group: &'a wgpu::BindGroup,
-    );
+impl Light {
+     pub fn new(light_type: LightType, color: Vec3, shadows_enabled: bool, intensity: f32) -> Self {
+        Self {
+            light_type,
+            color,
+            shadows_enabled,
+            intensity,
+            bind_group: None,
+        }
+    }
 
-    fn draw_light_model(
+    pub fn create_bind_group(
         &mut self,
-        model: &'a Model,
-        camera_bind_group: &'a wgpu::BindGroup,
-        light_bind_group: &'a wgpu::BindGroup,
-    );
-    fn draw_light_model_instanced(
-        &mut self,
-        model: &'a Model,
-        instances: Range<u32>,
-        camera_bind_group: &'a wgpu::BindGroup,
-        light_bind_group: &'a wgpu::BindGroup,
-    );
+        device: &Device,
+        layout: Option<&BindGroupLayout>,
+        buffer: Buffer
+    ) {
+        match layout {
+            Some(layout) => {
+                self.bind_group = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    layout: &layout,
+                    entries: &[wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: buffer.as_entire_binding(),
+                    }],
+                    label: Some("light_bind_group"),
+                }));
+            },
+            None => {
+                let layout = get_light_bind_group_layout(device);
+                self.bind_group = Some(device.create_bind_group(&BindGroupDescriptor {
+                    layout: &layout,
+                    entries: &[wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: buffer.as_entire_binding(),
+                    }],
+                    label: Some("light_bind_group"),
+                }));
+            },
+        }  
+    }
+    
 }
 
-// impl<'a, 'b> DrawLight<'b> for wgpu::RenderPass<'a>
-// where
-//     'b: 'a,
-// {
-//     fn draw_light_mesh(
-//         &mut self,
-//         mesh: &'b Mesh,
-//         camera_bind_group: &'b wgpu::BindGroup,
-//         light_bind_group: &'b wgpu::BindGroup,
-//     ) {
-//         self.draw_light_mesh_instanced(mesh, 0..1, camera_bind_group, light_bind_group);
-//     }
-
-//     fn draw_light_mesh_instanced(
-//         &mut self,
-//         mesh: &'b Mesh,
-//         instances: Range<u32>,
-//         camera_bind_group: &'b wgpu::BindGroup,
-//         light_bind_group: &'b wgpu::BindGroup,
-//     ) {
-//         self.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-//         self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-//         self.set_bind_group(0, camera_bind_group, &[]);
-//         self.set_bind_group(1, light_bind_group, &[]);
-//         self.draw_indexed(0..mesh.num_elements, 0, instances);
-//     }
-
-//     fn draw_light_model(
-//         &mut self,
-//         model: &'b Model,
-//         camera_bind_group: &'b wgpu::BindGroup,
-//         light_bind_group: &'b wgpu::BindGroup,
-//     ) {
-//         self.draw_light_model_instanced(model, 0..1, camera_bind_group, light_bind_group);
-//     }
-//     fn draw_light_model_instanced(
-//         &mut self,
-//         model: &'b Model,
-//         instances: Range<u32>,
-//         camera_bind_group: &'b wgpu::BindGroup,
-//         light_bind_group: &'b wgpu::BindGroup,
-//     ) {
-//         for mesh in &model.meshes {
-//             self.draw_light_mesh_instanced(
-//                 mesh,
-//                 instances.clone(),
-//                 camera_bind_group,
-//                 light_bind_group,
-//             );
-//         }
-//     }
-// }
+pub fn get_light_bind_group_layout(
+    device: &wgpu::Device,
+) -> BindGroupLayout {
+    return 
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        label: Some("camera_bind_group_layout"),
+    });
+}

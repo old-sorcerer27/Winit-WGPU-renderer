@@ -13,6 +13,7 @@ pub mod storage;
 pub mod asset_manager;
 pub mod vertex;
 pub mod mesh;
+pub mod scin;
 pub mod texture;
 pub mod material;
 pub mod animation;
@@ -20,7 +21,7 @@ pub mod model;
 pub mod buffer;
 pub mod image;
 pub mod scene;
-pub mod skin;
+pub mod camera;
 
 #[cfg(test)]
 pub mod test;  // Модуль тестов (только для тестирования)

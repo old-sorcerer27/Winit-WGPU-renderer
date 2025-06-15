@@ -70,7 +70,7 @@ async fn run(window: Window) {
     // meshes.append(assets.load_gltf_meshes(&gltf, base_path,  &device, &queue));
 
 
-    // println!("{:?}", assets);
-    // println!("{:?}", meshes);
+    println!("{:?}", assets);
+    println!("{:?}", meshes);
 
 }

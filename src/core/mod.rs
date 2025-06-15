@@ -1,6 +1,9 @@
+use glam::Mat4;
+
 pub mod app;
 pub mod window;
 pub mod renderer;
+pub mod raytracer;
 mod test;
 
 /// Типы пайплайнов рендеринга
