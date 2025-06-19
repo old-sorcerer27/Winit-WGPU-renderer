@@ -90,6 +90,7 @@ impl SceneEntity {
         aspect: f32,
         near: f32,
         far: f32,
+        rccp: Option<super::camera::RayCastCameraParams>,
     ) -> Self {
         let transform = Transform::new( 
             position, 
@@ -97,10 +98,11 @@ impl SceneEntity {
             scale,
         );
         
-        let mut camera = Camera::new( fov, aspect, near, far);
+        let mut camera = Camera::new( fov, aspect, near, far, rccp);
 
         let mut uniform = CameraUniform::new();
-        let view_proj = transform.calculate_view_projection(aspect);
+        // let view_proj = transform.calculate_view_projection(aspect);
+        let view_proj = transform.calculate_view_projection(&camera);
         uniform.update_view_proj(view_proj);
 
         let buffer = CameraUniform::create_buffer(device, uniform);

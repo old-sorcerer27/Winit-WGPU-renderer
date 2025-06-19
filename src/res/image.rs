@@ -53,7 +53,6 @@ pub fn load_gltf_image_data(
     let (data, format, uri) = match image.source() {
         Source::Uri { uri, mime_type } => {
             let path = base_path.ok_or_else(|| {
-                println!("BLEEEEEEEEEEEEEEEH Base path required for external images");
                 LoadImageDataError::new("Base path required for external images")
             })?.join(uri);
             
@@ -127,7 +126,6 @@ mod tests {
 
     #[test]
     fn test_load_embedded_image() {
-        // Создаем временный GLB файл с встроенным изображением
         let mut temp_file = NamedTempFile::new().unwrap();
         let glb_data = include_bytes!("../../test_assets/textured_cube.glb");
         // let glb_data = include_bytes!("../../test_assets/none_textured_cube.glb");
@@ -141,41 +139,6 @@ mod tests {
         assert!(images[0].uri.is_none());
         assert_eq!(images[0].format, Format::R8G8B8A8);
     }
-
-    #[test]
-    // fn test_load_external_image() {
-    //     // Создаем временную директорию с gltf и изображением
-    //     let dir = tempfile::tempdir().unwrap();
-    //     let gltf_path = dir.path().join("model.gltf");
-    //     let img_path = dir.path().join("texture.png");
-        
-    //     // Создаем минимальное PNG изображение
-    //     let mut png_data = Vec::new();
-    //     let mut encoder = png::Encoder::new(&mut png_data, 1, 1);
-    //     encoder.set_color(png::ColorType::Rgba);
-    //     encoder.set_depth(png::BitDepth::Eight);
-    //     let mut writer = encoder.write_header().unwrap();
-    //     writer.write_image_data(&[255, 0, 0, 255]).unwrap();
-    //     std::fs::write(&img_path, &png_data).unwrap();
-        
-    //     // Создаем минимальный GLTF файл
-    //     std::fs::write(
-    //         &gltf_path,
-    //         r#"{
-    //             "images": [{
-    //                 "uri": "texture.png",
-    //                 "mimeType": "image/png"
-    //             }]
-    //         }"#
-    //     ).unwrap();
-        
-    //     let gltf = Gltf::open(&gltf_path).unwrap();
-    //     let images = load_gltf_images(&gltf, Some(dir.path()), &[]).unwrap();
-        
-    //     assert_eq!(images.len(), 1);
-    //     assert_eq!(images[0].uri.as_deref(), Some("texture.png"));
-    //     assert_eq!(images[0].format, Format::R8G8B8A8);
-    // }
 
     #[test]
     fn test_unsupported_mime_type() {

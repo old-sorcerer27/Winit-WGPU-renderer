@@ -33,7 +33,6 @@ use image::{load_gltf_images, ImageData};
 use slotmap::new_key_type;
 
 /// Уникальные типы ключей для разных ресурсов.
-///
 /// Используются вместе с slotmap для типобезопасных handle'ов.
 new_key_type! {
     /// Ключ для мешей

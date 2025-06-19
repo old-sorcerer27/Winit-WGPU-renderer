@@ -20,7 +20,6 @@ fn vs_main(@location(0) position: vec3<f32>, @location(1) uv: vec2<f32>) -> Vert
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-    // Шахматный пол
     let tile = floor(input.uv * 10.0);
     let color = select(vec3<f32>(0.8), vec3<f32>(0.5), (tile.x + tile.y) % 2.0 == 0.0);
     return vec4<f32>(color, 1.0);

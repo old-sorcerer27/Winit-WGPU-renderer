@@ -1,7 +1,9 @@
 use std::{error::Error, fmt};
 
 use wgpu::{Device, BindGroupLayout, BindGroupDescriptor, BindGroupEntry, BindingResource};
-use super::{storage::Storage, texture::{get_texture_bind_group_layout, GpuTexture, GpuTextureHandle}, Handle};
+use crate::res::texture::{gpu_texture::{get_texture_bind_group_layout, GpuTexture, GpuTextureHandle}, Texture, TextureDescriptor};
+
+use super::{storage::Storage, Handle};
 
 /// Материал для рендеринга, содержащий параметры PBR и текстуры
 #[derive(Debug, Clone)]
@@ -141,3 +143,85 @@ impl LoadMaterialError {
 }
 
 
+#[repr(C)]
+#[derive(Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct GpuMaterial {
+    id: u32,
+    desc1: TextureDescriptor,
+    desc2: TextureDescriptor,
+    x: f32,
+}
+
+impl GpuMaterial {
+    pub fn lambertian(albedo: &Texture, global_texture_data: &mut Vec<[f32; 3]>) -> Self {
+        Self {
+            id: 0_u32,
+            desc1: Self::append_to_global_texture_data(albedo, global_texture_data),
+            desc2: TextureDescriptor::empty(),
+            x: 0_f32,
+        }
+    }
+
+    pub fn metal(albedo: &Texture, fuzz: f32, global_texture_data: &mut Vec<[f32; 3]>) -> Self {
+        Self {
+            id: 1_u32,
+            desc1: Self::append_to_global_texture_data(albedo, global_texture_data),
+            desc2: TextureDescriptor::empty(),
+            x: fuzz,
+        }
+    }
+
+    pub fn dielectric(refraction_index: f32) -> Self {
+        Self {
+            id: 2_u32,
+            desc1: TextureDescriptor::empty(),
+            desc2: TextureDescriptor::empty(),
+            x: refraction_index,
+        }
+    }
+
+    pub fn checkerboard(
+        even: &Texture,
+        odd: &Texture,
+        global_texture_data: &mut Vec<[f32; 3]>,
+    ) -> Self {
+        Self {
+            id: 3_u32,
+            desc1: Self::append_to_global_texture_data(even, global_texture_data),
+            desc2: Self::append_to_global_texture_data(odd, global_texture_data),
+            x: 0_f32,
+        }
+    }
+
+    pub fn emissive(emit: &Texture, global_texture_data: &mut Vec<[f32; 3]>) -> Self {
+        Self {
+            id: 4_u32,
+            desc1: Self::append_to_global_texture_data(emit, global_texture_data),
+            desc2: TextureDescriptor::empty(),
+            x: 0_f32,
+        }
+    }
+
+    fn append_to_global_texture_data(
+        texture: &Texture,
+        global_texture_data: &mut Vec<[f32; 3]>,
+    ) -> TextureDescriptor {
+        let dimensions = texture.dimensions();
+        let offset = global_texture_data.len() as u32;
+        global_texture_data.extend_from_slice(texture.as_slice());
+        TextureDescriptor {
+            width: dimensions.0,
+            height: dimensions.1,
+            offset,
+        }
+    }
+}
+
+
+pub enum RayCastMaterial {
+    Lambertian { albedo: Texture },
+    Metal { albedo: Texture, fuzz: f32 },
+    Dielectric { refraction_index: f32 },
+    Checkerboard { even: Texture, odd: Texture },
+    Emissive { emit: Texture },
+}

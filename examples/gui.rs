@@ -1,9 +1,8 @@
-use diploma_thesis::{controll::fly_camera::CameraController, res::{asset_manager::AssetManager, texture::{self, get_texture_bind_group_layout, 
-    DEPTH_FORMAT}, vertex::Vertex}, scene::{camera::get_camera_bind_group_layout, entity::SceneEntity}};
+use diploma_thesis::{ controll::camera::fpv_camera::FpvCameraController, res::{asset_manager::AssetManager, texture::{self, gpu_texture::{get_texture_bind_group_layout, DEPTH_FORMAT}},  vertex::Vertex}, scene::{camera::get_camera_bind_group_layout, entity::SceneEntity}};
 use gltf::Gltf;
-use wgpu::{util::DeviceExt, DepthStencilState, MemoryHints, PipelineCompilationOptions};
+use wgpu::{DepthStencilState, MemoryHints, PipelineCompilationOptions};
 use winit::{
-    event::{Event, KeyEvent, WindowEvent}, event_loop::EventLoop, window::{Window, WindowBuilder}
+    event::{Event, WindowEvent}, event_loop::EventLoop, window::{Window, WindowBuilder}
 };
 use pollster::block_on;
 use glam::{Quat, Vec3};
@@ -18,6 +17,7 @@ fn main() {
 }
 
 async fn run(event_loop: EventLoop<()>, window: Window) {
+    window.set_cursor_visible(false);
 
     let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
         backends: wgpu::Backends::all(),
@@ -40,7 +40,6 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
             &wgpu::DeviceDescriptor {
                 label: None,
                 required_features: wgpu::Features::empty(),
-                // required_features: wgpu::Features::POLYGON_MODE_LINE,
                 required_limits: wgpu::Limits::default(),
                 memory_hints: MemoryHints::default(),
                 trace: wgpu::Trace::Off,
@@ -62,18 +61,6 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
         view_formats: vec![],
     };
     surface.configure(&device, &config);
-
-    // let shader_source = format!(
-    //     "{}\n{}\n{}",
-    //     include_str!("../shaders/camera.wgsl"),
-    //     include_str!("../shaders/light.wgsl"),
-    //     include_str!("../shaders/main.wgsl")
-    // );
-
-    // let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-    //     label: Some("Shader"),
-    //     source: wgpu::ShaderSource::Wgsl(shader_source.into()),
-    // });
     
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("Shader"),
@@ -113,36 +100,24 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
         Some(&texture.sampler)
     );
 
+
+    let mut aspect_ratio = config.width as f32 / config.height as f32;
     let mut camera = SceneEntity::new_camera(
         &device, 
         Vec3::new(0., 0., 5.), 
         Quat::from_rotation_y(0.0), 
         Vec3::ONE, 
         45., 
-        config.width as f32 / config.height as f32, 
+        aspect_ratio, 
         0.1,
-        100.
+        100.,
+        None
     );
-
-    let mut camera_controler = CameraController::new(0.1, 0.1);
-
-
-    // let light = SceneEntity::new_light(
-    //     &device, 
-    //     Vec3::new(0., 5., -10.), 
-    //     Quat::IDENTITY, 
-    //     Vec3::new(0., 0., 0.),
-    //     LightType::Directional, 
-    //     Vec3::new(1., 1., 1.), 
-    //     true, 
-    //     10.
-    // );
-
+    let mut camera_controler = FpvCameraController::new(0.1, 0.02);
 
     let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("Render Pipeline Layout"),
         bind_group_layouts: &[
-                &get_light_bind_group_layout(&device),
                 &get_texture_bind_group_layout(&device),
                 &get_camera_bind_group_layout(&device),
             ],
@@ -196,7 +171,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
         cache: Default::default(),
     });
 
-    let mut depth_texture = texture::GpuTexture::create_depth_texture(&device, &config, "depth_texture");
+    let mut depth_texture = diploma_thesis::res::texture::gpu_texture::GpuTexture::create_depth_texture(&device, &config, "depth_texture");
 
     event_loop.run( |event, elwt: &winit::event_loop::EventLoopWindowTarget<()>| {
         match event {
@@ -211,7 +186,8 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                 config.width = new_size.width;
                 config.height = new_size.height;
                 surface.configure(&device, &config);
-                depth_texture = texture::GpuTexture::create_depth_texture(&device, &config, "depth_texture");
+                aspect_ratio = new_size.width as f32 / new_size.height as f32;
+                depth_texture = diploma_thesis::res::texture::gpu_texture::GpuTexture::create_depth_texture(&device, &config, "depth_texture");
             }
             Event::WindowEvent {
                     event: WindowEvent::RedrawRequested,
@@ -247,14 +223,12 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                         }),
                     });
 
-                    let aspect_ratio = config.width as f32 / config.height as f32;
-                    camera_controler.update_camera(&mut camera, aspect_ratio, &queue);
+                    camera_controler.update_camera(&mut camera, &queue);
                    
                     render_pass.set_viewport(0.0, 0.0, config.width as f32, config.height as f32, 0.0, 1.0);
                     render_pass.set_pipeline(&render_pipeline);
                     render_pass.set_bind_group(0, &material.bind_group, &[]);
                     render_pass.set_bind_group(1, &camera.get_bind_group(), &[]);
-                    // render_pass.set_bind_group(2, &light.get_bind_group(), &[]);
                     render_pass.set_vertex_buffer(0, cube.unwrap().vertex_buffer.slice(..));
                     render_pass.set_index_buffer(cube.unwrap().index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                     render_pass.draw_indexed(0..cube.unwrap().indices.len() as u32, 0, 0..1);
@@ -264,11 +238,17 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                 frame.present();
                 window.request_redraw();
             }
-                        Event::WindowEvent { 
+            Event::WindowEvent { 
                 event: key_event,
                 ..
             } => {
-                camera_controler.process_events(&key_event);
+                camera_controler.process_window_events(&key_event);
+            }
+            Event::DeviceEvent { 
+                event: key_event,
+                ..
+            } => {
+                camera_controler.process_device_events(&key_event);
             }
             _ => (),
         }

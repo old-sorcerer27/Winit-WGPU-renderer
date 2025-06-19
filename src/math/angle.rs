@@ -1,6 +1,6 @@
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub struct Angle {
-    radians: f32,
+    pub radians: f32,
 }
 
 impl Angle {

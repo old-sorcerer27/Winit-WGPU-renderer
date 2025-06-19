@@ -211,7 +211,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
         cache: Default::default(),
     });
 
-    let mut depth_texture = texture::GpuTexture::create_depth_texture(&device, &config, "depth_texture");
+    let mut depth_texture = diploma_thesis::res::texture::gpu_texture::GpuTexture::create_depth_texture(&device, &config, "depth_texture");
 
     let start_time = Instant::now();
 
@@ -227,6 +227,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
             } => {
                 config.width = new_size.width;
                 config.height = new_size.height;
+                depth_texture = diploma_thesis::res::texture::gpu_texture::GpuTexture::create_depth_texture(&device, &config, "depth_texture");
                 surface.configure(&device, &config);
             }
             Event::WindowEvent {

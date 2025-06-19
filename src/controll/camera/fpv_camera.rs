@@ -1,12 +1,12 @@
-use glam::{Quat, Vec3};
-use wgpu::{wgc::device::queue, Queue};
-use winit::{event::{ElementState, KeyEvent, WindowEvent}, keyboard::{KeyCode, PhysicalKey}};
+use glam::{EulerRot, Quat, Vec3};
+use wgpu::Queue;
+use winit::{event::{DeviceEvent, ElementState, KeyEvent, WindowEvent}, keyboard::{KeyCode, PhysicalKey}};
 
-use crate::scene::{camera::Camera, entity::SceneEntity, transform::{Transform}};
+use crate::scene::{entity::SceneEntity, transform::{Transform}};
 
-pub struct CameraController {
+pub struct FpvCameraController {
     speed: f32,
-    sensivity: f32,
+    sensitivity: f32,
     is_forward_pressed: bool,
     is_backward_pressed: bool,
     is_left_pressed: bool,
@@ -17,14 +17,17 @@ pub struct CameraController {
     is_rotate_right_pressed: bool,
     is_rotate_up_pressed: bool,
     is_rotate_down_pressed: bool,
+
+    mouse_delta: Option<(f32, f32)>,
+    last_mouse_pos: Option<(f32, f32)>,
 }
 
 
-impl CameraController {
-    pub fn new(speed: f32, sensivity: f32) -> Self {
+impl FpvCameraController {
+    pub fn new(speed: f32, sensitivity: f32) -> Self {
         Self {
             speed,
-            sensivity,
+            sensitivity,
             is_forward_pressed: false,
             is_backward_pressed: false,
             is_left_pressed: false,
@@ -35,10 +38,13 @@ impl CameraController {
             is_rotate_right_pressed: false,
             is_rotate_up_pressed: false,
             is_rotate_down_pressed: false,
+
+            mouse_delta: None,
+            last_mouse_pos: None,
         }
     }
 
-    pub fn process_events(&mut self, event: &WindowEvent) -> bool {
+     pub fn process_window_events(&mut self, event: &WindowEvent) -> bool {
         match event {
            WindowEvent::KeyboardInput {
                 event: KeyEvent { 
@@ -69,76 +75,78 @@ impl CameraController {
                     _ => false,
                 }
             }
+             _ => false,
+        }
+    }
+
+    pub fn process_device_events(&mut self, event: &DeviceEvent) -> bool {
+        match event {
+           DeviceEvent::MouseMotion { 
+            delta
+        } => {
+                self.mouse_delta = Some((delta.0 as f32, delta.1 as f32));
+                true
+            }
             _ => false,
         }
     }
 
     pub fn update_camera_transform(
-        &self,
+        &mut self,
         camera_transform: &mut Transform,
         // delta_time: f32 
     ) {
-       if self.is_rotate_left_pressed {
-            camera_transform.rotation *= Quat::from_rotation_y(-self.sensivity);
-        }
-        if self.is_rotate_right_pressed {
-            camera_transform.rotation *= Quat::from_rotation_y(self.sensivity);
-        }
-        // if self.is_rotate_up_pressed {
-        //     camera_transform.rotation *= Quat::from_rotation_x(self.sensivity);
-        // }
-        // if self.is_rotate_down_pressed {
-        //     camera_transform.rotation *= Quat::from_rotation_x(-self.sensivity);
-        // }
+        // let actual_move_speed = self.move_speed * delta_time;
+        // let actual_rotation_speed = self.rotation_speed * delta_time;
 
-           if self.is_rotate_up_pressed || self.is_rotate_down_pressed {
-            let (yaw, mut pitch, roll) = camera_transform.rotation.to_euler(glam::EulerRot::YXZ);
-            if self.is_rotate_up_pressed {
-                pitch += self.sensivity;
-            }
-            if self.is_rotate_down_pressed {
-                pitch -= self.sensivity;
-            }
-            pitch = pitch.clamp(
-                -std::f32::consts::PI / 2.0 + 0.1,
-                std::f32::consts::PI / 2.0 - 0.1    
-            );
-            camera_transform.rotation = Quat::from_euler(glam::EulerRot::YXZ, yaw, pitch, roll);
-        }
-
-
-        camera_transform.rotation = camera_transform.rotation.normalize();
-
-        let forward = camera_transform.rotation * -Vec3::Z;
-        let right = camera_transform.rotation * Vec3::X;
-        let up = camera_transform.rotation * Vec3::Y;
-
+        let mut translation = Vec3::ZERO;
+        
         if self.is_forward_pressed {
-            camera_transform.position += forward * self.speed;
+            translation -= Vec3::Z * self.speed;
         }
         if self.is_backward_pressed {
-            camera_transform.position -= forward * self.speed;
+            translation += Vec3::Z * self.speed;
         }
         if self.is_left_pressed {
-            camera_transform.position -= right * self.speed;
+            translation -= Vec3::X * self.speed;
         }
         if self.is_right_pressed {
-            camera_transform.position += right * self.speed;
+            translation += Vec3::X * self.speed;
         }
         if self.is_up_pressed {
-            camera_transform.position += up * self.speed;
+            translation += Vec3::Y * self.speed;
         }
         if self.is_down_pressed {
-            camera_transform.position -= up * self.speed;
+            translation -= Vec3::Y * self.speed;
+        }
+
+        camera_transform.position += camera_transform.rotation * translation;
+
+        if let Some((dx, dy)) = self.mouse_delta {
+            let delta_yaw = dx * self.sensitivity;
+            let delta_pitch = dy * self.sensitivity;
+            
+            let (mut yaw, mut pitch, _) = camera_transform.rotation.to_euler(EulerRot::YXZ);
+            yaw -= delta_yaw;
+            pitch = (pitch - delta_pitch).clamp(
+                -std::f32::consts::FRAC_PI_2 + 0.1,  
+                std::f32::consts::FRAC_PI_2 - 0.1     
+            );
+            
+            camera_transform.rotation = Quat::from_euler(EulerRot::YXZ, yaw, pitch, 0.0);
+            
+            self.mouse_delta = None;
         }
     }
 
 
-    pub fn update_camera(&mut self, camera_entity: &mut SceneEntity, aspect: f32, queue: &Queue) {
-        if let crate::scene::entity::SceneEntityKind::Camera { camera: _, mut uniform } = camera_entity.kind {
+
+
+    pub fn update_camera(&mut self, camera_entity: &mut SceneEntity, queue: &Queue) {
+        if let crate::scene::entity::SceneEntityKind::Camera { camera, mut uniform } = &camera_entity.kind {
             let transform = &mut camera_entity.transform;
             self.update_camera_transform(transform);
-            let view_proj = transform.calculate_view_projection(aspect);
+            let view_proj = transform.calculate_view_projection(camera);
             uniform.update_view_proj(view_proj);
             queue.write_buffer(
                 &camera_entity.buffer,

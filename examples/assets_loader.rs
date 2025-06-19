@@ -49,28 +49,24 @@ async fn run(window: Window) {
 
     let mut assets = AssetManager::new();
     
-    let gltf_path = Path::new("examples/examples_assets/cube_model/scene.gltf");
+    let gltf_path = Path::new("examples/assets/cube_model/scene.gltf");
     let gltf = Gltf::open(gltf_path).unwrap();
-    let meshes = match assets.load_gltf_meshes(&gltf, "examples/examples_assets/cube_model/", &device, &queue) {
+    let meshes = match assets.load_gltf_meshes(&gltf, "examples/assets/cube_model/", &device, &queue) {
         Ok(meshes) => meshes,
         Err(_) => todo!(),
     };
 
-    let gltf_path = Path::new("examples/examples_assets/none_textured_cube.glb");
+    let gltf_path = Path::new("examples/assets/reflection_mirror.glb");
     let gltf = Gltf::open(gltf_path).unwrap();
+    let meshes1 = assets.load_gltf_meshes(&gltf, "examples/assets/", &device, &queue);
 
-    let meshes2 = assets.load_gltf_meshes(&gltf, "examples/examples_assets/", &device, &queue);
+    let gltf_path = Path::new("examples/assets/pyramid/scene.gltf");
+    let gltf = Gltf::open(gltf_path).unwrap();
+    let meshes2 = assets.load_gltf_meshes(&gltf, "examples/assets/pyramid/", &device, &queue);
 
-    // let meshes2 = match assets.load_gltf_meshes(&gltf, "examples/examples_assets/", &device, &queue) 
-    // {
-    //     Ok(meshes) => meshes,
-    //     Err(_) => todo!(),
-    // };
-
-    // meshes.append(assets.load_gltf_meshes(&gltf, base_path,  &device, &queue));
-
-
-    println!("{:?}", assets);
+    // println!("{:?}", assets);
     println!("{:?}", meshes);
+    println!("\n");
+    println!("{:?}", meshes1);
 
 }

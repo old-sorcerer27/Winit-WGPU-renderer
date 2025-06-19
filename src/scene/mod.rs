@@ -3,13 +3,9 @@ pub mod transform;
 pub mod camera;
 pub mod light;
 
-use std::{collections::HashMap, ops::Range};
-
-use entity::{SceneEntity, SceneEntityKind};
-use transform::Transform;
-use wgpu::RenderPassDepthStencilAttachment;
-
-use crate::res::{material::Material, mesh::Mesh, model::Model, texture::GpuTexture, Handle};
+use std::collections::HashMap;
+use entity::SceneEntity;
+use crate::res::{material::Material, mesh::Mesh, model::Model, texture::gpu_texture::GpuTexture, Handle};
 
 
 #[derive(Default)]

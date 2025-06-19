@@ -1,9 +1,9 @@
-use diploma_thesis::{controll::fly_camera::CameraController, res::{asset_manager::AssetManager, texture::{self, get_texture_bind_group_layout, 
-    DEPTH_FORMAT}, vertex::Vertex}, scene::{camera::get_camera_bind_group_layout, entity::SceneEntity}};
+use diploma_thesis::{controll::camera::fly_camera::FlyCameraController, res::{asset_manager::AssetManager, texture::{gpu_texture::{GpuTexture, DEPTH_FORMAT}},  
+vertex::Vertex}, scene::{camera::get_camera_bind_group_layout, entity::SceneEntity}};
 use gltf::Gltf;
 use wgpu::{util::DeviceExt, DepthStencilState, MemoryHints, PipelineCompilationOptions};
 use winit::{
-    event::{Event, KeyEvent, WindowEvent}, event_loop::EventLoop, window::{Window, WindowBuilder}
+    event::{Event, WindowEvent}, event_loop::EventLoop, window::{Window, WindowBuilder}
 };
 use pollster::block_on;
 use glam::{Quat, Vec3};
@@ -63,25 +63,6 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
     };
     surface.configure(&device, &config);
 
-    // let shader_source = format!(
-    //     "{}\n{}\n{}",
-    //     include_str!("../shaders/camera.wgsl"),
-    //     include_str!("../shaders/light.wgsl"),
-    //     include_str!("../shaders/main.wgsl")
-    // );
-
-    // let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-    //     label: Some("Shader"),
-    //     source: wgpu::ShaderSource::Wgsl(shader_source.into()),
-    // });
-    
-    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("Shader"),
-        source: wgpu::ShaderSource::Wgsl(
-            include_str!("../examples/shaders/test_camera.wgsl").into() 
-        ),
-    });
-
     let mut assets = AssetManager::new();
     let gltf_path = Path::new("examples/assets/cube_model/scene.gltf");
     let gltf = Gltf::open(gltf_path).unwrap();
@@ -113,18 +94,131 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
         Some(&texture.sampler)
     );
 
+    let mut aspect_ratio = config.width as f32 / config.height as f32;
+    let mut camera = SceneEntity::new_camera(
+        &device, 
+        Vec3::new(0., 0., 5.), 
+        Quat::from_rotation_y(0.0), 
+        Vec3::ONE, 
+        45., 
+        aspect_ratio, 
+        0.1,
+        100.,
+          None
+    );
+
+    let mut camera_controler = FlyCameraController::new(0.1, 0.1);
+
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("Shader"),
+        source: wgpu::ShaderSource::Wgsl(include_str!("../examples/shaders/cube_camera.wgsl").into() ),
+    });
+
+    let skybox_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("Skybox Shader"),
+        source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/skybox.wgsl").into()),
+    });
+
+    // Вершины для скайбокса (большой куб)
+    let skybox_vertices = [
+        [-1.0,  1.0, -1.0], [-1.0, -1.0, -1.0], [ 1.0, -1.0, -1.0], [ 1.0,  1.0, -1.0], // зад
+        [-1.0, -1.0,  1.0], [-1.0,  1.0,  1.0], [ 1.0,  1.0,  1.0], [ 1.0, -1.0,  1.0], // перед
+        [-1.0, -1.0, -1.0], [-1.0, -1.0,  1.0], [ 1.0, -1.0,  1.0], [ 1.0, -1.0, -1.0], // низ
+        [-1.0,  1.0,  1.0], [-1.0,  1.0, -1.0], [ 1.0,  1.0, -1.0], [ 1.0,  1.0,  1.0], // верх
+        [ 1.0, -1.0, -1.0], [ 1.0, -1.0,  1.0], [ 1.0,  1.0,  1.0], [ 1.0,  1.0, -1.0], // право
+        [-1.0, -1.0,  1.0], [-1.0, -1.0, -1.0], [-1.0,  1.0, -1.0], [-1.0,  1.0,  1.0], // лево
+    ];
+
+    let skybox_indices = [
+        0, 1, 2, 0, 2, 3,       // зад
+        4, 5, 6, 4, 6, 7,       // перед
+        8, 9, 10, 8, 10, 11,    // низ
+        12, 13, 14, 12, 14, 15, // верх
+        16, 17, 18, 16, 18, 19, // право
+        20, 21, 22, 20, 22, 23, // лево
+    ];
+
+    let skybox_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Skybox Vertex Buffer"),
+        contents: bytemuck::cast_slice(&skybox_vertices),
+        usage: wgpu::BufferUsages::VERTEX,
+    });
+
+    let skybox_index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Skybox Index Buffer"),
+        contents: bytemuck::cast_slice(&skybox_indices),
+        usage: wgpu::BufferUsages::INDEX,
+    });
+
+    // Создаем pipeline для скайбокса
+    let skybox_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: Some("Skybox Pipeline Layout"),
+        bind_group_layouts: &[&get_camera_bind_group_layout(&device),],
+        push_constant_ranges: &[],
+    });
+
+    let skybox_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("Skybox Pipeline"),
+        layout: Some(&skybox_pipeline_layout),
+        vertex: wgpu::VertexState {
+            module: &skybox_shader,
+            entry_point: Some("vs_main"),
+            buffers: &[wgpu::VertexBufferLayout {
+                array_stride: std::mem::size_of::<[f32; 3]>() as u64,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: &[wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x3,
+                }],
+            }],
+            compilation_options: Default::default(),
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &skybox_shader,
+            entry_point: Some("fs_main"),
+            targets: &[Some(wgpu::ColorTargetState {
+                format: config.format,
+                blend: Some(wgpu::BlendState::REPLACE),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+            compilation_options: Default::default(),
+        }),
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            strip_index_format: None,
+            front_face: wgpu::FrontFace::Cw, // Обратный порядок для скайбокса
+            cull_mode: None, // Отключаем отсечение
+            polygon_mode: wgpu::PolygonMode::Fill,
+            unclipped_depth: false,
+            conservative: false,
+        },
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: wgpu::TextureFormat::Depth32Float,
+            depth_write_enabled: false, // Не записываем глубину для скайбокса
+            depth_compare: wgpu::CompareFunction::LessEqual, // <= чтобы скайбокс был на максимальной глубине
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+        cache: Default::default(),
+    });
+
+
     let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: Some("Render Pipeline Layout"),
+        label: Some("Cube Render Pipeline Layout"),
         bind_group_layouts: &[
                 // &get_light_bind_group_layout(&device),
-                &get_texture_bind_group_layout(&device),
+                // &get_texture_bind_group_layout(&device),
                 &get_camera_bind_group_layout(&device),
             ],
         push_constant_ranges: &[],
     });
+    
 
     let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("Render Pipeline"),
+        label: Some("Cube Render Pipeline"),
         layout: Some(&render_pipeline_layout),
         vertex: wgpu::VertexState {
             module: &shader,
@@ -153,11 +247,6 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
             unclipped_depth: false,
             conservative: false,
         },
-        // primitive: wgpu::PrimitiveState {
-        //     polygon_mode: wgpu::PolygonMode::Line,
-        //     cull_mode: None,
-        //     ..Default::default()
-        // },
         depth_stencil: Some(DepthStencilState{
             format: DEPTH_FORMAT,
             depth_write_enabled: true,
@@ -170,34 +259,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
         cache: Default::default(),
     });
 
-
-    let mut camera = SceneEntity::new_camera(
-        &device, 
-        Vec3::new(0., 0., 5.), 
-        Quat::from_rotation_y(0.0), 
-        Vec3::ONE, 
-        45., 
-        config.width as f32 / config.height as f32, 
-        0.1,
-        100.
-    );
-
-    let mut camera_controler = CameraController::new(0.1, 0.1);
-
-
-    // let light = SceneEntity::new_light(
-    //     &device, 
-    //     Vec3::new(0., 5., -10.), 
-    //     Quat::IDENTITY, 
-    //     Vec3::new(0., 0., 0.),
-    //     LightType::Directional, 
-    //     Vec3::new(1., 1., 1.), 
-    //     true, 
-    //     10.
-    // );
-
-    let mut depth_texture = texture::GpuTexture::create_depth_texture(&device, &config, "depth_texture");
-
+    let mut depth_texture = GpuTexture::create_depth_texture(&device, &config, "depth_texture");
 
     event_loop.run( |event, elwt: &winit::event_loop::EventLoopWindowTarget<()>| {
         match event {
@@ -212,7 +274,9 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                 config.width = new_size.width;
                 config.height = new_size.height;
                 surface.configure(&device, &config);
-                depth_texture = texture::GpuTexture::create_depth_texture(&device, &config, "depth_texture");
+                aspect_ratio = new_size.width as f32 / new_size.height as f32;
+
+                depth_texture = GpuTexture::create_depth_texture(&device, &config, "depth_texture");
             }
             Event::WindowEvent {
                     event: WindowEvent::RedrawRequested,
@@ -224,7 +288,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                 let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("Render Encoder"),
                 });
-
+            
                 {
                     let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                         label: Some("Render Pass"),
@@ -236,8 +300,6 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                                 store: wgpu::StoreOp::Store,
                             },
                         })],
-                        timestamp_writes: Default::default(),
-                        occlusion_query_set: Default::default(),
                         depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                             view: &depth_texture.view,
                             depth_ops: Some(wgpu::Operations {
@@ -246,16 +308,20 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                             }),
                             stencil_ops: None,
                         }),
+                        timestamp_writes: Default::default(),
+                        occlusion_query_set: Default::default(),
                     });
 
-                    let aspect_ratio = config.width as f32 / config.height as f32;
-                    camera_controler.update_camera(&mut camera, aspect_ratio, &queue);
-                   
-                    render_pass.set_viewport(0.0, 0.0, config.width as f32, config.height as f32, 0.0, 1.0);
+                    camera_controler.update_camera(&mut camera, &queue);
+        
+                    render_pass.set_pipeline(&skybox_pipeline);
+                    render_pass.set_bind_group(0, &camera.get_bind_group(), &[]);
+                    render_pass.set_vertex_buffer(0, skybox_vertex_buffer.slice(..));
+                    render_pass.set_index_buffer(skybox_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+                    render_pass.draw_indexed(0..skybox_indices.len() as u32, 0, 0..1);
+
                     render_pass.set_pipeline(&render_pipeline);
-                    render_pass.set_bind_group(0, &material.bind_group, &[]);
-                    render_pass.set_bind_group(1, &camera.get_bind_group(), &[]);
-                    // render_pass.set_bind_group(2, &light.get_bind_group(), &[]);
+                    render_pass.set_bind_group(0, &camera.get_bind_group(), &[]);
                     render_pass.set_vertex_buffer(0, cube.unwrap().vertex_buffer.slice(..));
                     render_pass.set_index_buffer(cube.unwrap().index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                     render_pass.draw_indexed(0..cube.unwrap().indices.len() as u32, 0, 0..1);

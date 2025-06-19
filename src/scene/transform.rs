@@ -1,6 +1,8 @@
 use glam::{Mat4, Quat, Vec3};
 use wgpu::{util::DeviceExt, Buffer, BufferUsages};
 
+use crate::scene::camera::Camera;
+
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -40,32 +42,61 @@ impl Transform {
         }
     }
 
-    pub fn view_matrix(&self) -> Mat4 {
-        let rotation_matrix = Mat4::from_quat(self.rotation);
-        let translation_matrix = Mat4::from_translation(-self.position);
-        rotation_matrix * translation_matrix
-    }
-
-    pub fn calculate_view_projection(&self, aspect: f32) -> Mat4 {
-        let projection = Mat4::perspective_rh(
-            45.0f32.to_radians(),
-            aspect,
-            0.1,
-            100.0,
-        );
-        let view = self.view_matrix();
-        projection * view
-    }
-
     pub fn to_matrix(&self) -> Mat4 {
         Mat4::from_scale_rotation_translation(self.scale, self.rotation, self.position)
     }
 
-    pub fn rotate_camera(&mut self, delta_pitch: f32, delta_yaw: f32) {
-        let pitch = Quat::from_rotation_x(delta_pitch);
-        let yaw = Quat::from_rotation_y(delta_yaw);
-        self.rotation = self.rotation * yaw * pitch;
+    pub fn forward(&self) -> Vec3 {
+        self.rotation * -Vec3::Z
     }
+
+    pub fn right(&self) -> Vec3 {
+        self.rotation * Vec3::X
+    }
+
+    pub fn up(&self) -> Vec3 {
+        self.rotation * Vec3::Y
+    }
+
+    pub fn rotate(&mut self, delta: glam::Vec3) {
+        let rotation = glam::Quat::from_euler(
+            glam::EulerRot::YXZ,
+            delta.y,
+            delta.x,
+            delta.z,
+        );
+        self.rotation = (rotation * self.rotation).normalize();
+    }
+
+    // pub fn axis_translate(&mut self, translation: glam::Vec3) {
+    //     self.position += translation;
+    // }
+
+    // pub fn direct_translate(&mut self, translation: glam::Vec3) {
+    //     self.position += self.rotation * translation;
+    // }
+
+    pub fn view_matrix(&self) -> Mat4 {
+        Mat4::look_to_rh(
+            self.position,
+            self.forward(),
+            self.up(),
+        )
+    }
+
+    pub fn calculate_view_projection(&self, camera: &Camera) -> Mat4 {
+        let view = self.view_matrix();
+        
+        let proj = Mat4::perspective_rh(
+            camera.fov.to_radians(),
+            camera.aspect,
+            camera.near,
+            camera.far,
+        );
+        
+        proj * view
+    }
+
 
     pub fn create_buffer(
         device: &wgpu::Device, 

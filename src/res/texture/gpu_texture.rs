@@ -4,7 +4,7 @@ use gltf::Error;
 use image::GenericImageView;
 use wgpu::{util::DeviceExt, BindGroupLayout, Sampler, TextureView};
 
-use super::{{buffer::BufferData, image::load_gltf_image_data, load_binary}, storage::Storage, Handle, Resource};
+use crate::res::{storage::Storage, Handle, Resource, TextureKey};
 
 
 #[derive(Debug, Clone)] 
@@ -15,7 +15,7 @@ pub struct GpuTexture {
 }
 
 impl Resource for GpuTexture {
-    type Key = super::TextureKey;
+    type Key = TextureKey;
     
     type LoadParams = GpuTexture;
     
@@ -174,169 +174,5 @@ pub fn get_texture_bind_group_layout(
 
 
 
-pub async fn load_texture<'a>(
-    file_name: &'a str,
-    device: &'a wgpu::Device,
-    queue: &'a wgpu::Queue,
-) ->Result<GpuTexture, Box<dyn std::error::Error>> {
-    let data = load_binary(file_name).await?;
-    GpuTexture::from_bytes(device, queue, &data, file_name)
-}
 
-#[derive(Debug)]
-pub struct LoadTextureDataError {
-    message: std::string::String,
-}
 
-impl fmt::Display for LoadTextureDataError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Texture loading error: {}", self.message)  // Исправлено сообщение об ошибке
-    }
-}
-
-impl std::error::Error for LoadTextureDataError {}
-
-impl LoadTextureDataError {
-    fn new(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-        }
-    }
-}
-
-pub fn load_gltf_texture_source_data(
-    base_path: Option<&Path>,
-    pbr: gltf::material::PbrMetallicRoughness<'_>,
-    buffers: &[BufferData],  
-) -> Result<Vec<u8>, LoadTextureDataError> {
-    match &pbr.base_color_texture().map(|tex|{tex.texture().source()}) {
-        Some(source_image) => {
-            match load_gltf_image_data(base_path, buffers, source_image.clone()) {
-                Ok(image) => return Ok(image.data),
-                Err(_) => return Err(LoadTextureDataError::new(format!("Texture load error"))),
-            };
-        },
-        None => {return Err(LoadTextureDataError::new(format!("Texture load error")))},
-    };
-}
-
-pub struct UniformTextureBuffer {
-    handle: wgpu::Buffer,
-    binding_idx: u32,
-}
-
-impl UniformTextureBuffer {
-    pub fn new(
-        device: &wgpu::Device,
-        buffer_size: wgpu::BufferAddress,
-        binding_idx: u32,
-        label: Option<&str>,
-    ) -> Self {
-        let handle = device.create_buffer(&wgpu::BufferDescriptor {
-            size: buffer_size,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-            label,
-        });
-
-        Self {
-            handle,
-            binding_idx,
-        }
-    }
-
-    pub fn new_from_bytes(
-        device: &wgpu::Device,
-        bytes: &[u8],
-        binding_idx: u32,
-        label: Option<&str>,
-    ) -> Self {
-        let handle = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            contents: bytes,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            label,
-        });
-
-        Self {
-            handle,
-            binding_idx,
-        }
-    }
-
-    pub fn handle(&self) -> &wgpu::Buffer {
-        &self.handle
-    }
-
-    pub fn layout(&self, visibility: wgpu::ShaderStages) -> wgpu::BindGroupLayoutEntry {
-        wgpu::BindGroupLayoutEntry {
-            binding: self.binding_idx,
-            visibility,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Uniform,
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            count: None,
-        }
-    }
-
-    pub fn binding(&self) -> wgpu::BindGroupEntry<'_> {
-        wgpu::BindGroupEntry {
-            binding: self.binding_idx,
-            resource: self.handle.as_entire_binding(),
-        }
-    }
-}
-
-pub struct StorageBuffer {
-    handle: wgpu::Buffer,
-    binding_idx: u32,
-}
-
-impl StorageBuffer {
-    pub fn new_from_bytes(
-        device: &wgpu::Device,
-        bytes: &[u8],
-        binding_idx: u32,
-        label: Option<&str>,
-    ) -> Self {
-        let handle = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            contents: bytes,
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-            label,
-        });
-
-        Self {
-            handle,
-            binding_idx,
-        }
-    }
-
-    pub fn handle(&self) -> &wgpu::Buffer {
-        &self.handle
-    }
-
-    pub fn layout(
-        &self,
-        visibility: wgpu::ShaderStages,
-        read_only: bool,
-    ) -> wgpu::BindGroupLayoutEntry {
-        wgpu::BindGroupLayoutEntry {
-            binding: self.binding_idx,
-            visibility,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Storage { read_only },
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            count: None,
-        }
-    }
-
-    pub fn binding(&self) -> wgpu::BindGroupEntry<'_> {
-        wgpu::BindGroupEntry {
-            binding: self.binding_idx,
-            resource: self.handle.as_entire_binding(),
-        }
-    }
-}

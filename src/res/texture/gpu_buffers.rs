@@ -1,11 +1,11 @@
 use wgpu::util::DeviceExt;
 
-pub struct UniformBuffer {
+pub struct UniformTextureBuffer {
     handle: wgpu::Buffer,
     binding_idx: u32,
 }
 
-impl UniformBuffer {
+impl UniformTextureBuffer {
     pub fn new(
         device: &wgpu::Device,
         buffer_size: wgpu::BufferAddress,

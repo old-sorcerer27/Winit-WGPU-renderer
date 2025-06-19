@@ -20,7 +20,6 @@ fn vs_main(@location(0) position: vec3<f32>) -> VertexOutput {
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-    // Простой градиентный скайбокс
     let direction = normalize(input.tex_coords);
     let sky_color = mix(vec3<f32>(0.1, 0.3, 0.8), vec3<f32>(0.6, 0.8, 1.0), direction.y * 0.5 + 0.5);
     return vec4<f32>(sky_color, 1.0);

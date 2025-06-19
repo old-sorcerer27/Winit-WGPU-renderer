@@ -3,7 +3,9 @@ use std::{error::Error, path::Path};
 
 use gltf::{Gltf};
 
-use super::{buffer::{load_gltf_buffers, to_vec}, camera::Camera, material::Material, mesh::Mesh, model::Model, scene::Scene, storage::Storage, texture::{load_gltf_texture_source_data, GpuTexture}, Handle};
+use crate::res::texture::{gpu_texture::GpuTexture, load_gltf_texture_source_data};
+
+use super::{buffer::{load_gltf_buffers, to_vec}, camera::Camera, material::Material, mesh::Mesh, model::Model, scene::Scene, storage::Storage,  Handle};
 
 
 #[derive(Debug, Clone)] 
